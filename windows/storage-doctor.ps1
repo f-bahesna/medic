@@ -518,9 +518,9 @@ function Show-DeleteCommand {
         Write-Host '  ' -NoNewline
         Write-Badge $e.Item.Safety
         Write-Text "  $($e.Item.Label)" -NoNewline
-        $hint = " ($(Format-Size $e.Item.Bytes))"
-        if ($e.Item.Admin) { $hint += ' run as administrator' }
-        Write-Text $hint DarkGray
+        $hint = Format-Size $e.Item.Bytes
+        if ($e.Item.Admin) { $hint += ', run as administrator' }
+        Write-Text " ($hint)" DarkGray
         foreach ($c in $e.Commands) { Write-Host "    $c" }
     }
 }
