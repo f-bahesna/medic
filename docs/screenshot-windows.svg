@@ -1,5 +1,5 @@
-<svg xmlns="http://www.w3.org/2000/svg" width="1034" height="1316" viewBox="0 0 1034 1316" role="img" aria-label="Example storage-doctor output on Windows, with sample data">
-<rect width="1034" height="1316" rx="8" fill="#0c0c0c"/>
+<svg xmlns="http://www.w3.org/2000/svg" width="1034" height="1766" viewBox="0 0 1034 1766" role="img" aria-label="Example storage-doctor output on Windows, with sample data">
+<rect width="1034" height="1766" rx="8" fill="#0c0c0c"/>
 <rect width="1034" height="34" rx="8" fill="#202020"/>
 <rect y="26" width="1034" height="8" fill="#202020"/>
 <rect x="8" y="6" width="190" height="28" rx="6" fill="#0c0c0c"/>
@@ -65,11 +65,30 @@
 <tspan x="20" y="1084">  1.7 GB     <tspan fill="#c19c00">CAUTION</tspan><tspan font-weight="normal" fill="#cccccc">  Installer files (9 .msi/.iso/setup.exe)</tspan></tspan>
 <tspan x="20" y="1102"><tspan fill="#767676">                      Rarely needed after installing. Clean moves them to the Recycle Bin, so it can be undone.</tspan></tspan>
 <tspan x="20" y="1120"><tspan fill="#767676">  Run as administrator to also measure system caches (Windows Update, crash dumps, Windows.old).</tspan></tspan>
-<tspan x="20" y="1156"><tspan fill="#3a96dd">Summary</tspan></tspan>
+<tspan x="20" y="1156"><tspan fill="#3a96dd">Delete commands</tspan></tspan>
 <tspan x="20" y="1174"><tspan fill="#767676">------------------------------------------------------------</tspan></tspan>
-<tspan x="20" y="1192">  <tspan fill="#16c60c">SAFE   </tspan><tspan font-weight="normal" fill="#cccccc">  23.2 GB   </tspan> regenerated automatically, no data loss</tspan>
-<tspan x="20" y="1210">  <tspan fill="#c19c00">CAUTION</tspan><tspan font-weight="normal" fill="#cccccc">  8.6 GB    </tspan> regenerable, read the note first</tspan>
-<tspan x="20" y="1228">  <tspan fill="#e74856">REVIEW </tspan><tspan font-weight="normal" fill="#cccccc">  45.0 GB   </tspan> your data, check by hand (never cleaned by storage-doctor)</tspan>
-<tspan x="20" y="1264">  Run again with -Clean to clean SAFE and CAUTION items (asks for each one),</tspan>
-<tspan x="20" y="1282">  or with -DryRun to preview without changing anything.</tspan>
+<tspan x="20" y="1192"><tspan fill="#767676">  Prefer -Clean: it asks per item and only touches allowlisted folders.</tspan></tspan>
+<tspan x="20" y="1210"><tspan fill="#767676">  To clean by hand, close the related apps and copy the commands under an item.</tspan></tspan>
+<tspan x="20" y="1246"><tspan fill="#767676">  Paste this helper once per PowerShell window. It empties a folder without following links:</tspan></tspan>
+<tspan x="20" y="1264">    function Clear-Folder($Path) { Get-ChildItem -LiteralPath $Path -Force -ErrorAction SilentlyContinue | ForEach-Object {</tspan>
+<tspan x="20" y="1282"> if ($_.PSIsContainer -and ($_.Attributes -band [IO.FileAttributes]::ReparsePoint)) { cmd /c rd "$($_.FullName)" } elseif (</tspan>
+<tspan x="20" y="1300">$_.PSIsContainer) { cmd /c rd /s /q "$($_.FullName)" 2&gt;$null } else { Remove-Item -LiteralPath $_.FullName -Force -ErrorAct</tspan>
+<tspan x="20" y="1318">ion SilentlyContinue } } }</tspan>
+<tspan x="20" y="1354">  <tspan fill="#16c60c">SAFE   </tspan>  Browser caches (Chrome, Edge, Brave, Firefox)<tspan fill="#767676"> (12.6 GB)</tspan></tspan>
+<tspan x="20" y="1372">    Clear-Folder "$env:LOCALAPPDATA\Google\Chrome\User Data\Default\Cache"</tspan>
+<tspan x="20" y="1390">    Clear-Folder "$env:LOCALAPPDATA\Google\Chrome\User Data\Default\Code Cache"</tspan>
+<tspan x="20" y="1408">    Clear-Folder "$env:LOCALAPPDATA\Microsoft\Edge\User Data\Default\Cache"</tspan>
+<tspan x="20" y="1444">  <tspan fill="#16c60c">SAFE   </tspan>  Temporary files<tspan fill="#767676"> (8.4 GB)</tspan></tspan>
+<tspan x="20" y="1462">    Clear-Folder "$env:LOCALAPPDATA\Temp"</tspan>
+<tspan x="20" y="1498">  <tspan fill="#c19c00">CAUTION</tspan>  Docker Desktop data<tspan fill="#767676"> (6.9 GB)</tspan></tspan>
+<tspan x="20" y="1516">    docker system prune --force</tspan>
+<tspan x="20" y="1552">  <tspan fill="#16c60c">SAFE   </tspan>  npm cache<tspan fill="#767676"> (2.2 GB)</tspan></tspan>
+<tspan x="20" y="1570">    npm cache clean --force</tspan>
+<tspan x="20" y="1606"><tspan fill="#3a96dd">Summary</tspan></tspan>
+<tspan x="20" y="1624"><tspan fill="#767676">------------------------------------------------------------</tspan></tspan>
+<tspan x="20" y="1642">  <tspan fill="#16c60c">SAFE   </tspan><tspan font-weight="normal" fill="#cccccc">  23.2 GB   </tspan> regenerated automatically, no data loss</tspan>
+<tspan x="20" y="1660">  <tspan fill="#c19c00">CAUTION</tspan><tspan font-weight="normal" fill="#cccccc">  8.6 GB    </tspan> regenerable, read the note first</tspan>
+<tspan x="20" y="1678">  <tspan fill="#e74856">REVIEW </tspan><tspan font-weight="normal" fill="#cccccc">  45.0 GB   </tspan> your data, check by hand (never cleaned by storage-doctor)</tspan>
+<tspan x="20" y="1714">  Run again with -Clean to clean SAFE and CAUTION items (asks for each one),</tspan>
+<tspan x="20" y="1732">  or with -DryRun to preview without changing anything.</tspan>
 </text></svg>

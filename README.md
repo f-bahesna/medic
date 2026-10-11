@@ -153,6 +153,7 @@ Adding a location is usually one line there.
 If it can be cleaned by emptying a folder, also add the exact path to the allowlist (`CLEANABLE_DIRS` on Mac, `$cleanable` on Windows).
 If the tool has its own cleanup command, add a case to `clean_item` (Mac) or `Invoke-ItemClean` (Windows) instead.
 Keep the printed delete commands in sync: `item_commands` (Mac) and `Get-ItemCommand` (Windows) mirror the cleanup functions.
+If you change what the report looks like, update the sample output in `docs/make-screenshots.py` and run `python3 docs/make-screenshots.py` to redraw the README screenshots.
 
 Before opening a pull request:
 
