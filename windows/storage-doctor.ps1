@@ -204,8 +204,8 @@ function Show-Disk {
         $used = $d.Size - $d.FreeSpace
         $pct = [int][math]::Floor($used * 100 / $d.Size)
         $name = $d.DeviceID
-        if ($d.DeviceID -eq $env:SystemDrive) { $name += ' (Windows)' }
         if ($d.VolumeName) { $name += " $($d.VolumeName)" }
+        if ($d.DeviceID -eq $env:SystemDrive) { $name += ' (system drive)' }
         Write-Text "  $name"
         Write-Row '  Capacity' (Format-Size $d.Size)
         Write-Host ('  {0,-22} {1,-10} ' -f '  Used', (Format-Size $used)) -NoNewline
@@ -474,7 +474,7 @@ function Show-Breakdown([string]$Dir, [int]$Count) {
     $rows = Get-ChildItem -LiteralPath $Dir -Directory -Force -ErrorAction SilentlyContinue |
         Where-Object { -not ([int]$_.Attributes -band $ReparsePoint) } |
         ForEach-Object { [pscustomobject]@{ Name = $_.Name; Bytes = Get-PathSize $_.FullName } } |
-        Sort-Object Bytes -Descending | Select-Object -First $Count
+        Where-Object { $_.Bytes -ge 1MB } | Sort-Object Bytes -Descending | Select-Object -First $Count
     Write-Progress -Activity 'storage-doctor' -Completed
     Write-Host ''
     Write-Text "  $(Format-Path $Dir)"
@@ -539,10 +539,14 @@ function Show-LargeFile {
 
 function Show-SystemInfo {
     Write-Section 'Managed by Windows (do not delete by hand)'
-    foreach ($name in 'pagefile.sys', 'hiberfil.sys', 'swapfile.sys') {
-        $f = Get-Item -LiteralPath "$env:SystemDrive\$name" -Force -ErrorAction SilentlyContinue
-        if ($null -eq $f) { continue }
-        Write-Row $name (Format-Size $f.Length)
+    # FileInfo reads the size from the directory entry, which works for locked system files.
+    $paths = @(Get-CimInstance Win32_PageFileUsage -ErrorAction SilentlyContinue | ForEach-Object { $_.Name }) +
+        @("$env:SystemDrive\hiberfil.sys", "$env:SystemDrive\swapfile.sys")
+    foreach ($path in ($paths | Select-Object -Unique)) {
+        $f = New-Object System.IO.FileInfo $path
+        if (-not $f.Exists) { continue }
+        $name = $f.Name.ToLowerInvariant()
+        Write-Row $f.FullName (Format-Size $f.Length)
         switch ($name) {
             'pagefile.sys' { Write-Note 'Virtual memory. Windows sizes it automatically.' }
             'hiberfil.sys' { Write-Note "Hibernation. 'powercfg /hibernate off' (admin) frees it, but also disables Fast Startup." }

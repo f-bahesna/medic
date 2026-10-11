@@ -8,7 +8,7 @@ jobs:
   macos:
     runs-on: macos-latest
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v5
       - name: Lint
         run: brew install shellcheck && shellcheck macos/storage-doctor.sh
       - name: Syntax check with the built-in bash 3.2
@@ -19,7 +19,7 @@ jobs:
   windows:
     runs-on: windows-latest
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v5
       - name: Lint
         shell: pwsh
         run: |
