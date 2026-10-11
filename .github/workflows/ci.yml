@@ -1,0 +1,38 @@
+name: CI
+
+on:
+  push:
+  pull_request:
+
+jobs:
+  macos:
+    runs-on: macos-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Lint
+        run: brew install shellcheck && shellcheck macos/storage-doctor.sh
+      - name: Syntax check with the built-in bash 3.2
+        run: /bin/bash -n macos/storage-doctor.sh
+      - name: Read-only scan
+        run: /bin/bash macos/storage-doctor.sh --no-color
+
+  windows:
+    runs-on: windows-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Lint
+        shell: pwsh
+        run: |
+          if ((Get-Content -Raw windows/storage-doctor.ps1) -match '[^\x00-\x7F]') {
+            throw 'storage-doctor.ps1 must be ASCII only: Windows PowerShell 5.1 misreads other characters'
+          }
+          Install-Module PSScriptAnalyzer -Force -Scope CurrentUser
+          $results = Invoke-ScriptAnalyzer -Path windows/storage-doctor.ps1 -Settings windows/PSScriptAnalyzerSettings.psd1
+          $results | Format-Table -AutoSize
+          if ($results) { exit 1 }
+      - name: Read-only scan with Windows PowerShell 5.1
+        shell: powershell
+        run: .\windows\storage-doctor.ps1 -NoColor
+      - name: Read-only scan with PowerShell 7
+        shell: pwsh
+        run: ./windows/storage-doctor.ps1 -Quick -NoColor
