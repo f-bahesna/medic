@@ -450,6 +450,81 @@ function Show-Item {
     }
 }
 
+# Pasted once before the Clear-Folder commands. Remove-Item -Recurse is avoided on
+# purpose: Windows PowerShell 5.1 follows junctions with it. rd removes a link
+# without entering it.
+$ClearFolderHelper = 'function Clear-Folder($Path) { Get-ChildItem -LiteralPath $Path -Force -ErrorAction SilentlyContinue | ForEach-Object { if ($_.PSIsContainer -and ($_.Attributes -band [IO.FileAttributes]::ReparsePoint)) { cmd /c rd "$($_.FullName)" } elseif ($_.PSIsContainer) { cmd /c rd /s /q "$($_.FullName)" 2>$null } else { Remove-Item -LiteralPath $_.FullName -Force -ErrorAction SilentlyContinue } } }'
+
+# Show a path the way it is typed in PowerShell, so the command works on any PC.
+function Format-EnvPath([string]$Path) {
+    foreach ($name in 'LOCALAPPDATA', 'APPDATA', 'USERPROFILE', 'ProgramData', 'windir', 'SystemDrive') {
+        $value = [Environment]::GetEnvironmentVariable($name)
+        if ($value -and $Path.StartsWith($value, [StringComparison]::OrdinalIgnoreCase)) {
+            return '$env:' + $name + $Path.Substring($value.Length)
+        }
+    }
+    return $Path
+}
+
+# The commands that clean an item by hand, one per line. Mirrors Invoke-ItemClean;
+# for folders only allowlisted ones that have contents are listed.
+function Get-ItemCommand($Item) {
+    switch ($Item.Id) {
+        'recycle_bin' { 'powershell -NoProfile -Command "Clear-RecycleBin -Force"' }
+        'npm' { 'npm cache clean --force' }
+        'pnpm' { 'pnpm store prune' }
+        'go_mod' { 'go clean -modcache' }
+        'nuget' { 'dotnet nuget locals all --clear' }
+        'docker' { 'docker system prune --force' }
+        'delivery_opt' { 'Delete-DeliveryOptimizationCache -Force' }
+        'installers' { }
+        'windows_update' {
+            'Stop-Service wuauserv, bits -Force'
+            'Clear-Folder "$env:windir\SoftwareDistribution\Download"'
+            'Start-Service wuauserv, bits'
+        }
+        default {
+            foreach ($p in $Item.Paths) {
+                if ($p -like '*.DMP') {
+                    if (Test-Path -LiteralPath $p -PathType Leaf) { 'Remove-Item "' + (Format-EnvPath $p) + '" -Force' }
+                    continue
+                }
+                if (-not $Allowed.Contains([IO.Path]::GetFullPath($p).TrimEnd('\'))) { continue }
+                $hasContent = Get-ChildItem -LiteralPath $p -Force -ErrorAction SilentlyContinue | Select-Object -First 1
+                if ($hasContent) { 'Clear-Folder "' + (Format-EnvPath $p) + '"' }
+            }
+        }
+    }
+}
+
+function Show-DeleteCommand {
+    $entries = @(foreach ($item in (Get-VisibleItem)) {
+            if (-not $item.Cleanable -or $item.Safety -eq 'REVIEW') { continue }
+            $commands = @(Get-ItemCommand $item)
+            if ($commands.Count -gt 0) { [pscustomobject]@{ Item = $item; Commands = $commands } }
+        })
+    if ($entries.Count -eq 0) { return }
+
+    Write-Section 'Delete commands'
+    Write-Note 'Prefer -Clean: it asks per item and only touches allowlisted folders.'
+    Write-Note 'To clean by hand, close the related apps and copy the commands under an item.'
+    if (@($entries | Where-Object { $_.Commands -match '^Clear-Folder' }).Count -gt 0) {
+        Write-Host ''
+        Write-Note 'Paste this helper once per PowerShell window. It empties a folder without following links:'
+        Write-Host "    $ClearFolderHelper"
+    }
+    foreach ($e in $entries) {
+        Write-Host ''
+        Write-Host '  ' -NoNewline
+        Write-Badge $e.Item.Safety
+        Write-Text "  $($e.Item.Label)" -NoNewline
+        $hint = " ($(Format-Size $e.Item.Bytes))"
+        if ($e.Item.Admin) { $hint += ' run as administrator' }
+        Write-Text $hint DarkGray
+        foreach ($c in $e.Commands) { Write-Host "    $c" }
+    }
+}
+
 # ---------------------------------------------------------------------------
 # Detailed scans (skipped with -Quick)
 # ---------------------------------------------------------------------------
@@ -784,6 +859,7 @@ Show-Memory
 Initialize-Item
 Measure-Item
 Show-Item
+Show-DeleteCommand
 if (-not $Quick) {
     Show-AppDataBreakdown
     Show-DevProject

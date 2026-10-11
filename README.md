@@ -120,6 +120,7 @@ Both versions show the same sections:
 - **Space hogs**: known cache and data locations, each with a size, a safety level and a one-line explanation.
 - **Library / AppData breakdown**: the biggest folders inside `~/Library` (Mac) or `AppData` (Windows).
 - **Dev dependencies**: `node_modules` and Python virtualenvs in common project folders.
+- **Delete commands**: for every SAFE and CAUTION item, the exact command to clean it by hand, if you prefer that over the interactive cleanup.
 - **Large files**: the biggest files in your home folder with their last modified date.
 - **Managed by the system**: things like Time Machine snapshots, `pagefile.sys` or `WinSxS`, and what to do instead of deleting them by hand.
 
@@ -151,6 +152,7 @@ Each version keeps its list of locations in one function: `collect_items` in the
 Adding a location is usually one line there.
 If it can be cleaned by emptying a folder, also add the exact path to the allowlist (`CLEANABLE_DIRS` on Mac, `$cleanable` on Windows).
 If the tool has its own cleanup command, add a case to `clean_item` (Mac) or `Invoke-ItemClean` (Windows) instead.
+Keep the printed delete commands in sync: `item_commands` (Mac) and `Get-ItemCommand` (Windows) mirror the cleanup functions.
 
 Before opening a pull request:
 

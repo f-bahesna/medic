@@ -406,6 +406,51 @@ show_items() {
   done
 }
 
+# item_commands I - the commands that clean item I by hand, one per line.
+# Mirrors clean_item; for folders only allowlisted ones that exist are listed.
+item_commands() {
+  local i=$1 p d arr
+  case "${ITEM_ID[i]}" in
+    trash) echo "osascript -e 'tell application \"Finder\" to empty trash'" ;;
+    sim_devices) echo "xcrun simctl delete unavailable" ;;
+    npm) echo "npm cache clean --force" ;;
+    pnpm) echo "pnpm store prune" ;;
+    go_mod) echo "go clean -modcache" ;;
+    conda) echo "conda clean --all --yes" ;;
+    docker) echo "docker system prune --force" ;;
+    installers) ;; # a list of single files, moved to the Trash by --clean only
+    *)
+      IFS=: read -r -a arr <<<"${ITEM_PATHS[i]}"
+      for p in "${arr[@]}"; do
+        # Skip empty folders: zsh, the default macOS shell, errors on a glob with no matches.
+        [ -n "$(ls -A "$p" 2>/dev/null)" ] || continue
+        for d in "${CLEANABLE_DIRS[@]}"; do
+          # shellcheck disable=SC2016 # $HOME is meant to be printed, not expanded
+          [ "$p" = "$d" ] && printf 'rm -rf "$HOME%s"/*\n' "${p#"$HOME"}" && break
+        done
+      done
+      ;;
+  esac
+}
+
+show_commands() {
+  local i cmds shown=0
+  for i in $(sorted_items); do
+    [ "${ITEM_CLEAN[i]}" = "yes" ] || continue
+    case "${ITEM_SAFETY[i]}" in SAFE | CAUTION) ;; *) continue ;; esac
+    cmds=$(item_commands "$i")
+    [ -n "$cmds" ] || continue
+    if [ "$shown" -eq 0 ]; then
+      section "Delete commands"
+      note "Prefer --clean: it asks per item and only touches allowlisted folders."
+      note "To clean by hand, quit the related apps and copy the command under an item."
+      shown=1
+    fi
+    printf '\n  %s  %s%s%s %s(%s)%s\n' "$(badge "${ITEM_SAFETY[i]}")" "$B" "${ITEM_LABEL[i]}" "$N" "$D" "$(human "${ITEM_KB[i]}")" "$N"
+    printf '%s\n' "$cmds" | sed 's/^/    /'
+  done
+}
+
 # ---------------------------------------------------------------------------
 # Detailed scans (skipped with --quick)
 # ---------------------------------------------------------------------------
@@ -695,6 +740,7 @@ show_memory
 collect_items
 measure_items
 show_items
+show_commands
 if [ "$QUICK" -eq 0 ]; then
   show_breakdowns
   scan_dev_projects

@@ -10,11 +10,13 @@ jobs:
     steps:
       - uses: actions/checkout@v5
       - name: Lint
-        run: brew install shellcheck && shellcheck macos/storage-doctor.sh
+        run: brew install shellcheck && shellcheck macos/storage-doctor.sh tests/macos-delete-commands.sh
       - name: Syntax check with the built-in bash 3.2
         run: /bin/bash -n macos/storage-doctor.sh
       - name: Read-only scan
         run: /bin/bash macos/storage-doctor.sh --no-color
+      - name: Printed delete commands are safe
+        run: tests/macos-delete-commands.sh
 
   windows:
     runs-on: windows-latest
@@ -36,3 +38,9 @@ jobs:
       - name: Read-only scan with PowerShell 7
         shell: pwsh
         run: ./windows/storage-doctor.ps1 -Quick -NoColor
+      - name: Printed Clear-Folder helper is safe (Windows PowerShell 5.1)
+        shell: powershell
+        run: .\tests\windows-clear-folder.ps1
+      - name: Printed Clear-Folder helper is safe (PowerShell 7)
+        shell: pwsh
+        run: ./tests/windows-clear-folder.ps1
