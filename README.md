@@ -29,6 +29,10 @@ Not sure what you have?
 
 ## Mac
 
+![Example output of storage-doctor on a Mac](docs/screenshot-macos.svg)
+
+<sub>Example output with sample data.</sub>
+
 ### 1. Download and run
 
 Open **Terminal** (press `Cmd + Space`, type `Terminal`, press Enter) and paste:
@@ -64,6 +68,10 @@ Do **not** run it with `sudo`, it refuses to, because it only needs your own fil
 ---
 
 ## Windows
+
+![Example output of storage-doctor on Windows](docs/screenshot-windows.svg)
+
+<sub>Example output with sample data.</sub>
 
 ### 1. Download and run
 

@@ -1,0 +1,71 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="1034" height="1298" viewBox="0 0 1034 1298" role="img" aria-label="Example storage-doctor output on macOS, with sample data">
+<rect width="1034" height="1298" rx="10" fill="#1e1f22"/>
+<rect width="1034" height="34" rx="10" fill="#2b2d31"/>
+<rect y="24" width="1034" height="10" fill="#2b2d31"/>
+<circle cx="20" cy="17" r="6" fill="#ff5f57"/>
+<circle cx="40" cy="17" r="6" fill="#febc2e"/>
+<circle cx="60" cy="17" r="6" fill="#28c840"/>
+<text x="517.0" y="22" text-anchor="middle" font-family="-apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif" font-size="13" fill="#9da1a8">Terminal - storage-doctor.sh</text>
+<text font-family="ui-monospace, SFMono-Regular, Menlo, Consolas, 'Cascadia Mono', monospace" font-size="13" fill="#d7dae0" xml:space="preserve">
+<tspan x="20" y="58"><tspan fill="#98c379">~ $ </tspan>bash storage-doctor.sh</tspan>
+<tspan x="20" y="94"><tspan font-weight="bold" fill="#ffffff">storage-doctor 0.2.0</tspan><tspan fill="#7f848e"> - MacBook Air, macOS 15.5</tspan></tspan>
+<tspan x="20" y="112"><tspan fill="#7f848e">  Read-only scan. Nothing is deleted unless you run --clean and confirm.</tspan></tspan>
+<tspan x="20" y="148"><tspan font-weight="bold" fill="#56b6c2">Disk</tspan></tspan>
+<tspan x="20" y="166"><tspan fill="#7f848e">------------------------------------------------------------</tspan></tspan>
+<tspan x="20" y="184">  Capacity               494.4 GB</tspan>
+<tspan x="20" y="202">  Used                   431.2 GB   <tspan fill="#e5c07b">[##########################....]</tspan> 87%</tspan>
+<tspan x="20" y="220">  Free                   <tspan font-weight="bold" fill="#ffffff">63.2 GB</tspan></tspan>
+<tspan x="20" y="238">    macOS (read-only)    11.8 GB</tspan>
+<tspan x="20" y="256">    Your data volume     402.6 GB</tspan>
+<tspan x="20" y="274">    Other volumes        16.8 GB<tspan fill="#7f848e"> (swap, recovery, updates)</tspan></tspan>
+<tspan x="20" y="292"><tspan fill="#7f848e">  Finder may show more free space: it also counts 'purgeable' space macOS can free on its own.</tspan></tspan>
+<tspan x="20" y="328"><tspan font-weight="bold" fill="#56b6c2">Memory (RAM)</tspan></tspan>
+<tspan x="20" y="346"><tspan fill="#7f848e">------------------------------------------------------------</tspan></tspan>
+<tspan x="20" y="364">  Physical memory        16.0 GB</tspan>
+<tspan x="20" y="382">  Used                   11.4 GB    <tspan fill="#98c379">[#####################.........]</tspan> 71%</tspan>
+<tspan x="20" y="400">    App memory           6.1 GB</tspan>
+<tspan x="20" y="418">    Wired                2.3 GB<tspan fill="#7f848e"> (kernel, cannot be freed)</tspan></tspan>
+<tspan x="20" y="436">    Compressed           3.0 GB</tspan>
+<tspan x="20" y="454">  Cached files           3.9 GB<tspan fill="#7f848e"> (freed instantly when apps need it)</tspan></tspan>
+<tspan x="20" y="472">  Free                   712 MB</tspan>
+<tspan x="20" y="490">  Swap used              1.2 GB of 2.0 GB</tspan>
+<tspan x="20" y="508">  Memory pressure        <tspan fill="#98c379">Normal</tspan><tspan fill="#7f848e"> (52% available)</tspan></tspan>
+<tspan x="20" y="544"><tspan font-weight="bold" fill="#ffffff">  Top apps by memory</tspan><tspan fill="#7f848e"> (resident memory, approximate)</tspan></tspan>
+<tspan x="20" y="562">    3.1 GB     Google Chrome<tspan fill="#7f848e"> (24 processes)</tspan></tspan>
+<tspan x="20" y="580">    1.2 GB     Slack<tspan fill="#7f848e"> (6 processes)</tspan></tspan>
+<tspan x="20" y="598">    1.1 GB     Code<tspan fill="#7f848e"> (9 processes)</tspan></tspan>
+<tspan x="20" y="616">    842 MB     Docker Desktop<tspan fill="#7f848e"> (4 processes)</tspan></tspan>
+<tspan x="20" y="634">    612 MB     Spotify<tspan fill="#7f848e"> (3 processes)</tspan></tspan>
+<tspan x="20" y="652">    214 MB     Finder</tspan>
+<tspan x="20" y="670"><tspan fill="#7f848e">  High 'used' memory is normal on macOS. Only memory pressure tells you if RAM is a problem.</tspan></tspan>
+<tspan x="20" y="706"><tspan font-weight="bold" fill="#56b6c2">Space hogs</tspan></tspan>
+<tspan x="20" y="724"><tspan fill="#7f848e">------------------------------------------------------------</tspan></tspan>
+<tspan x="20" y="742"><tspan fill="#7f848e">  SIZE       SAFETY   WHAT</tspan></tspan>
+<tspan x="20" y="760">  24.3 GB    <tspan fill="#e06c75">REVIEW </tspan><tspan font-weight="bold" fill="#ffffff">  Photos library (Photos Library.photoslibrary)</tspan></tspan>
+<tspan x="20" y="778"><tspan fill="#7f848e">                      Never delete files inside it. Use the Photos app or iCloud 'Optimize Mac Storage'.</tspan></tspan>
+<tspan x="20" y="796"><tspan fill="#7f848e">                      ~/Pictures/Photos Library.photoslibrary</tspan></tspan>
+<tspan x="20" y="814">  14.8 GB    <tspan fill="#98c379">SAFE   </tspan><tspan font-weight="bold" fill="#ffffff">  User app caches</tspan></tspan>
+<tspan x="20" y="832"><tspan fill="#7f848e">                      Apps rebuild these on demand. Quit apps before cleaning.</tspan></tspan>
+<tspan x="20" y="850"><tspan fill="#7f848e">                      ~/Library/Caches</tspan></tspan>
+<tspan x="20" y="868">  9.6 GB     <tspan fill="#e5c07b">CAUTION</tspan><tspan font-weight="bold" fill="#ffffff">  Docker Desktop disk image</tspan></tspan>
+<tspan x="20" y="886"><tspan fill="#7f848e">                      Clean runs 'docker system prune': stopped containers, dangling images, build cache. Volumes are kept.</tspan></tspan>
+<tspan x="20" y="904"><tspan fill="#7f848e">                      ~/Library/Containers/com.docker.docker/Data/vms</tspan></tspan>
+<tspan x="20" y="922">  7.2 GB     <tspan fill="#98c379">SAFE   </tspan><tspan font-weight="bold" fill="#ffffff">  Xcode DerivedData</tspan></tspan>
+<tspan x="20" y="940"><tspan fill="#7f848e">                      Build intermediates. The next build is slower, nothing is lost.</tspan></tspan>
+<tspan x="20" y="958"><tspan fill="#7f848e">                      ~/Library/Developer/Xcode/DerivedData</tspan></tspan>
+<tspan x="20" y="976">  5.1 GB     <tspan fill="#e06c75">REVIEW </tspan><tspan font-weight="bold" fill="#ffffff">  iPhone / iPad backups</tspan></tspan>
+<tspan x="20" y="994"><tspan fill="#7f848e">                      Delete old backups in Finder &gt; your device &gt; Manage Backups, never by hand.</tspan></tspan>
+<tspan x="20" y="1012"><tspan fill="#7f848e">                      ~/Library/Application Support/MobileSync/Backup</tspan></tspan>
+<tspan x="20" y="1030">  2.4 GB     <tspan fill="#98c379">SAFE   </tspan><tspan font-weight="bold" fill="#ffffff">  npm cache</tspan></tspan>
+<tspan x="20" y="1048"><tspan fill="#7f848e">                      Packages are downloaded again when needed.</tspan></tspan>
+<tspan x="20" y="1066"><tspan fill="#7f848e">                      ~/.npm/_cacache</tspan></tspan>
+<tspan x="20" y="1084">  1.9 GB     <tspan fill="#e5c07b">CAUTION</tspan><tspan font-weight="bold" fill="#ffffff">  Installer files (6 .dmg/.pkg/.xip/.iso)</tspan></tspan>
+<tspan x="20" y="1102"><tspan fill="#7f848e">                      Rarely needed after installing. Clean moves them to the Trash, so it can be undone.</tspan></tspan>
+<tspan x="20" y="1138"><tspan font-weight="bold" fill="#56b6c2">Summary</tspan></tspan>
+<tspan x="20" y="1156"><tspan fill="#7f848e">------------------------------------------------------------</tspan></tspan>
+<tspan x="20" y="1174">  <tspan fill="#98c379">SAFE   </tspan><tspan font-weight="bold" fill="#ffffff">  24.4 GB   </tspan> regenerated automatically, no data loss</tspan>
+<tspan x="20" y="1192">  <tspan fill="#e5c07b">CAUTION</tspan><tspan font-weight="bold" fill="#ffffff">  11.5 GB   </tspan> regenerable, read the note first</tspan>
+<tspan x="20" y="1210">  <tspan fill="#e06c75">REVIEW </tspan><tspan font-weight="bold" fill="#ffffff">  29.4 GB   </tspan> your data, check by hand (never cleaned by storage-doctor)</tspan>
+<tspan x="20" y="1246">  Run <tspan font-weight="bold" fill="#ffffff">storage-doctor.sh --clean</tspan> to clean SAFE and CAUTION items (asks for each one),</tspan>
+<tspan x="20" y="1264">  or <tspan font-weight="bold" fill="#ffffff">storage-doctor.sh --dry-run</tspan> to preview without changing anything.</tspan>
+</text></svg>
