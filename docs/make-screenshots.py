@@ -1,173 +1,280 @@
-"""Render the README screenshots: terminal-style SVGs of storage-doctor output.
+"""Draw the README screenshots from the real output of both scripts, with made-up data.
 
-All data is made up. Keep the layout in sync with the scripts when their output
-changes, then run:  python3 docs/make-screenshots.py
+macOS: storage-doctor.sh runs unmodified. The system commands it reads from (df, du,
+vm_stat, sysctl, ps, ...) are replaced by fakes earlier on PATH, and HOME points at a
+throwaway folder.
+Windows: screenshot-data-windows.ps1 runs the real script functions in PowerShell 7
+and only replaces the ones that read the system.
+
+Both run in a pseudo terminal so the colors are real, and the ANSI output is turned
+into SVG. Run on a Mac with PowerShell 7 installed (or PWSH=/path/to/pwsh):
+
+    python3 docs/make-screenshots.py
 """
+import getpass
 import os
+import re
+import shutil
+import stat
+import subprocess
 import sys
+import tempfile
 from xml.sax.saxutils import escape
 
-OUT = sys.argv[1] if len(sys.argv) > 1 else os.path.dirname(os.path.abspath(__file__))
+DOCS = os.path.dirname(os.path.abspath(__file__))
+ROOT = os.path.dirname(DOCS)
 
 FONT = 13
 LINE = 18
-CHAR = 8.0  # advance width of a 13px monospace glyph, with a little slack
+CHAR = 8.0      # advance width of a 13px monospace glyph, with a little slack
 PAD_X = 20
+MAX_COLS = 124  # longer lines wrap, like they would in a terminal window
+
+KB_PER_GB = 1e6 / 1.024  # the macOS script shows decimal units, like Finder
 
 
-def row(label, value, hint=None, hint_style="dim"):
-    segs = [(f"  {label:<22} {value}", None)]
-    if hint:
-        segs.append((" " + hint, hint_style))
-    return segs
+# ---------------------------------------------------------------- macOS ----
+
+def gb(value):
+    return int(value * KB_PER_GB)
 
 
-def bar_row(label, value, pct, color):
-    filled = pct * 30 // 100
-    return [(f"  {label:<22} {value:<10} ", None),
-            ("[" + "#" * filled + "." * (30 - filled) + "]", color), (f" {pct}%", None)]
+MAC_SIZES = {  # path under HOME -> size in KB, as `du -sk` would report it
+    "Pictures/Photos Library.photoslibrary": gb(24.3),
+    "Library/Caches": gb(14.8),
+    "Library/Containers/com.docker.docker/Data/vms": gb(9.6),
+    "Library/Developer/Xcode/DerivedData": gb(7.2),
+    "Library/Application Support/MobileSync/Backup": gb(5.1),
+    ".npm/_cacache": gb(2.4),
+}
+MAC_INSTALLERS = {  # file in ~/Downloads -> size in MB
+    "Docker.dmg": 610, "UTM.dmg": 430, "LibreOffice_25.8.1_MacOS_aarch64.dmg": 330,
+    "googlechrome.dmg": 230, "Slack-4.46.99-macOS.dmg": 180, "Zoom.pkg": 120,
+}
+MAC_APPS = [  # (executable, processes, total MB)
+    ("/Applications/Google Chrome.app/Contents/MacOS/Google Chrome", 24, 3174),
+    ("/Applications/Slack.app/Contents/MacOS/Slack", 6, 1229),
+    ("/Applications/Visual Studio Code.app/Contents/MacOS/Electron", 9, 1126),
+    ("/Applications/Docker.app/Contents/MacOS/com.docker.backend", 4, 842),
+    ("/Applications/Spotify.app/Contents/MacOS/Spotify", 3, 612),
+    ("/System/Library/CoreServices/Finder.app/Contents/MacOS/Finder", 1, 214),
+    ("/System/Library/PrivateFrameworks/SkyLight.framework/Resources/WindowServer", 1, 176),
+    ("/usr/libexec/trustd", 1, 38),
+]
+
+PAGE = 16384
+PAGES_PER_GB = (1 << 30) // PAGE
 
 
-def section(title, line_style):
-    return [[], [(title, line_style)], [("-" * 60, "dim")]]
+def pages(value_gb):
+    return int(value_gb * PAGES_PER_GB)
 
 
-def item(size, safety, color, label, note, path, indent):
-    lines = [[(f"  {size:<10} ", None), (f"{safety:<7}", color), ("  " + label, "bold")]]
-    lines.append([(" " * indent + note, "dim")])
-    if path:
-        lines.append([(" " * indent + path, "dim")])
+MAC_FAKES = {
+    "df": """#!/bin/bash
+echo "Filesystem 1024-blocks Used Available Capacity iused ifree %iused Mounted on"
+case "$2" in
+  /) echo "/dev/disk3s1s1 482812500 11523438 61718750 16% 0 0 0% /" ;;
+  *) echo "/dev/disk3s5 482812500 393164063 61718750 87% 0 0 0% /System/Volumes/Data" ;;
+esac
+""",
+    "du": """#!/bin/bash
+shift
+for p in "$@"; do
+  kb=$(awk -F'\\t' -v p="$p" '$1 == p { print $2 }' "$FAKE_SIZES")
+  printf '%s\\t%s\\n' "${kb:-4}" "$p"
+done
+""",
+    "vm_stat": f"""#!/bin/bash
+cat <<EOF
+Mach Virtual Memory Statistics: (page size of {PAGE} bytes)
+Pages free:                               {int(712 * 1024 * 1024 / PAGE)}.
+Pages wired down:                         {pages(2.3)}.
+Pages purgeable:                          {pages(0.2)}.
+File-backed pages:                        {pages(3.7)}.
+Anonymous pages:                          {pages(6.3)}.
+Pages occupied by compressor:             {pages(3.0)}.
+EOF
+""",
+    "sysctl": """#!/bin/bash
+case "$2" in
+  hw.memsize) echo 17179869184 ;;
+  kern.memorystatus_vm_pressure_level) echo 1 ;;
+  vm.swapusage) echo "total = 2048.00M  used = 1228.80M  free = 819.20M  (encrypted)" ;;
+esac
+""",
+    "memory_pressure": "#!/bin/bash\necho 'System-wide memory free percentage: 52%'\n",
+    "ps": "#!/bin/bash\ncat \"$FAKE_PS\"\n",
+    "scutil": "#!/bin/bash\necho 'MacBook Air'\n",
+    "sw_vers": "#!/bin/bash\necho 15.5\n",
+    "tmutil": "#!/bin/bash\necho com.apple.TimeMachine.2026-10-10-093012.local\n",
+    "npm": "#!/bin/bash\n",
+    "docker": "#!/bin/bash\n",
+}
+
+
+def mac_output():
+    tmp = tempfile.mkdtemp(prefix="storage-doctor-shot.")
+    try:
+        home, bin_dir = os.path.join(tmp, "home"), os.path.join(tmp, "bin")
+        os.makedirs(bin_dir)
+        for name, body in MAC_FAKES.items():
+            path = os.path.join(bin_dir, name)
+            with open(path, "w") as f:
+                f.write(body)
+            os.chmod(path, os.stat(path).st_mode | stat.S_IEXEC)
+
+        sizes = []
+        for rel, kb in MAC_SIZES.items():
+            os.makedirs(os.path.join(home, rel))
+            open(os.path.join(home, rel, "data"), "w").close()  # not empty
+            sizes.append(f"{os.path.join(home, rel)}\t{kb}")
+        os.makedirs(os.path.join(home, "Downloads"))
+        for name, mb in MAC_INSTALLERS.items():
+            path = os.path.join(home, "Downloads", name)
+            open(path, "w").close()
+            sizes.append(f"{path}\t{int(mb * 1000 / 1.024)}")
+        with open(os.path.join(tmp, "sizes"), "w") as f:
+            f.write("\n".join(sizes) + "\n")
+
+        with open(os.path.join(tmp, "ps"), "w") as f:
+            for path, count, total_mb in MAC_APPS:
+                helper = path.replace("/Contents/MacOS/", "/Contents/Frameworks/Helper.app/Contents/MacOS/")
+                for i in range(count):
+                    f.write(f"{total_mb * 1024 // count} {path if i == 0 else helper}\n")
+
+        env = {"HOME": home, "PATH": f"{bin_dir}:/usr/bin:/bin:/usr/sbin:/sbin", "TERM": "xterm-256color",
+               "TMPDIR": tmp, "FAKE_SIZES": os.path.join(tmp, "sizes"), "FAKE_PS": os.path.join(tmp, "ps")}
+        return run_in_pty(["/bin/bash", "-c", "exec bash storage-doctor.sh --quick 2>/dev/null"],
+                          cwd=os.path.join(ROOT, "macos"), env=env)
+    finally:
+        shutil.rmtree(tmp)
+
+
+# -------------------------------------------------------------- Windows ----
+
+def windows_output():
+    pwsh = os.environ.get("PWSH") or shutil.which("pwsh")
+    if not pwsh:
+        sys.exit("PowerShell 7 is needed for the Windows screenshot: install it or set PWSH=/path/to/pwsh")
+    env = {"HOME": tempfile.gettempdir(), "PATH": "/usr/bin:/bin", "TERM": "xterm-256color"}
+    return run_in_pty([pwsh, "-NoProfile", "-NoLogo", "-File", os.path.join(DOCS, "screenshot-data-windows.ps1")],
+                      cwd=DOCS, env=env)
+
+
+# ------------------------------------------------------------ rendering ----
+
+def run_in_pty(cmd, cwd, env):
+    """Run cmd with a terminal as stdout, so the script prints its colors."""
+    out = subprocess.run(["script", "-q", "/dev/null"] + cmd, cwd=cwd, env=env,
+                         stdin=subprocess.DEVNULL, stdout=subprocess.PIPE, check=True).stdout.decode()
+    # The screenshots are published: never let anything from this machine end up in them.
+    for private in {os.path.expanduser("~"), getpass.getuser(), os.uname().nodename.split(".")[0]}:
+        if private and private.lower() in out.lower():
+            sys.exit(f"refusing to write screenshots: the output contains {private!r} from this machine:\n{out}")
+    for marker in ("Exception", "Error:", "Line |", "command not found"):
+        if marker in out:
+            sys.exit(f"refusing to write screenshots: the script printed an error:\n{out}")
+    return out
+
+
+SGR = re.compile(r"\x1b\[([0-9;]*)m")
+OTHER_ESCAPES = re.compile(r"\x1b\[[0-9;?]*[A-Za-ln-z]|\x1b[=>]|\x1b\][^\x07]*\x07|\^D\x08\x08")
+
+
+def parse_ansi(text):
+    """Split ANSI output into lines of (text, fg_code, bold, dim) segments."""
+    text = OTHER_ESCAPES.sub("", text).replace("\r", "")
+    fg, bold, dim = None, False, False
+    lines = []
+    for raw in text.rstrip("\n").split("\n"):
+        segments, pos = [], 0
+        for m in SGR.finditer(raw):
+            if m.start() > pos:
+                segments.append((raw[pos:m.start()], fg, bold, dim))
+            for code in (int(c) for c in (m.group(1) or "0").split(";")):
+                if code == 0:
+                    fg, bold, dim = None, False, False
+                elif code == 1:
+                    bold = True
+                elif code == 2:
+                    dim = True
+                elif code == 22:
+                    bold = dim = False
+                elif code == 39:
+                    fg = None
+                elif 30 <= code <= 37 or 90 <= code <= 97:
+                    fg = code
+            pos = m.end()
+        if pos < len(raw):
+            segments.append((raw[pos:], fg, bold, dim))
+        lines.append(segments)
     return lines
 
 
-def summary(rows, colors):
+def wrap(lines, cols):
     out = []
-    for safety, size, text in rows:
-        out.append([("  ", None), (f"{safety:<7}", colors[safety]), (f"  {size:<10}", "bold"), (" " + text, None)])
+    for segs in lines:
+        current, used = [], 0
+        for text, *style in segs:
+            while used + len(text) > cols:
+                cut = cols - used
+                current.append((text[:cut], *style))
+                out.append(current)
+                current, used, text = [], 0, text[cut:]
+            if text:
+                current.append((text, *style))
+                used += len(text)
+        out.append(current)
     return out
 
 
 def render(name, prompt, lines, theme):
-    fixed = [l for l in lines if not isinstance(l, tuple)]
-    width_chars = max(sum(len(t) for t, _ in l) for l in fixed + [[(theme["prompt_prefix"] + prompt, None)]])
-    # A ("wrap", text) line is longer than the window, so it wraps like it would in a terminal.
-    wrapped = []
-    for l in lines:
-        if isinstance(l, tuple):
-            text = l[1]
-            wrapped += [[(text[k:k + width_chars], None)] for k in range(0, len(text), width_chars)]
-        else:
-            wrapped.append(l)
-    lines = wrapped
-    width = int(PAD_X * 2 + width_chars * CHAR) + 10
+    p = theme["palette"]
+    widths = [sum(len(s[0]) for s in l) for l in lines]
+    cols = min(MAX_COLS, max([w for w in widths if w <= MAX_COLS] + [len(theme["prompt_prefix"] + prompt)]))
+    lines = wrap(lines, cols)
+    width = int(PAD_X * 2 + cols * CHAR) + 10
     top = 44
     height = top + 16 + (len(lines) + 2) * LINE + 14
-    p = theme["palette"]
+    r = theme["radius"]
     svg = [f'<svg xmlns="http://www.w3.org/2000/svg" width="{width}" height="{height}" viewBox="0 0 {width} {height}" role="img" aria-label="{escape(theme["aria"])}">',
-           f'<rect width="{width}" height="{height}" rx="{theme["radius"]}" fill="{p["bg"]}"/>',
-           f'<rect width="{width}" height="34" rx="{theme["radius"]}" fill="{p["bar"]}"/>',
-           f'<rect y="{34 - theme["radius"]}" width="{width}" height="{theme["radius"]}" fill="{p["bar"]}"/>']
+           f'<rect width="{width}" height="{height}" rx="{r}" fill="{p["bg"]}"/>',
+           f'<rect width="{width}" height="34" rx="{r}" fill="{p["bar"]}"/>',
+           f'<rect y="{34 - r}" width="{width}" height="{r}" fill="{p["bar"]}"/>']
     svg += theme["chrome"](width)
     svg.append(f'<text font-family="ui-monospace, SFMono-Regular, Menlo, Consolas, \'Cascadia Mono\', monospace" font-size="{FONT}" fill="{p["fg"]}" xml:space="preserve">')
     y = top + 14
     svg.append(f'<tspan x="{PAD_X}" y="{y}"><tspan fill="{p["prompt"]}">{escape(theme["prompt_prefix"])}</tspan>{escape(prompt)}</tspan>')
     y += LINE * 2
-    for l in lines:
+    for segs in lines:
         parts = []
-        for text, style in l:
-            t = escape(text)
-            if style is None:
-                parts.append(t)
-            elif style == "bold":
-                parts.append(f'<tspan font-weight="{p.get("weight", "bold")}" fill="{p["bold"]}">{t}</tspan>')
-            elif style.endswith("+bold"):
-                parts.append(f'<tspan font-weight="bold" fill="{p[style[:-5]]}">{t}</tspan>')
-            else:
-                parts.append(f'<tspan fill="{p[style]}">{t}</tspan>')
+        for text, fg, bold, dim in segs:
+            if not text:
+                continue
+            attrs = []
+            if fg is not None:
+                attrs.append(f'fill="{p["ansi"][fg]}"')
+            elif dim:
+                attrs.append(f'fill="{p["dim"]}"')
+            elif bold:
+                attrs.append(f'fill="{p["bold"]}"')
+            if bold:
+                attrs.append('font-weight="bold"')
+            parts.append(f'<tspan {" ".join(attrs)}>{escape(text)}</tspan>' if attrs else escape(text))
         if parts:
             svg.append(f'<tspan x="{PAD_X}" y="{y}">{"".join(parts)}</tspan>')
         y += LINE
     svg.append("</text></svg>")
-    with open(f"{OUT}/{name}", "w") as f:
+    with open(os.path.join(DOCS, name), "w") as f:
         f.write("\n".join(svg) + "\n")
-
-
-# ---------------------------------------------------------------- macOS ----
-
-mac_palette = {"bg": "#1e1f22", "bar": "#2b2d31", "fg": "#d7dae0", "bold": "#ffffff", "dim": "#7f848e",
-               "green": "#98c379", "yellow": "#e5c07b", "red": "#e06c75", "cyan": "#56b6c2", "prompt": "#98c379"}
+    print(f"wrote docs/{name} ({len(lines)} lines)")
 
 
 def mac_chrome(width):
     return ['<circle cx="20" cy="17" r="6" fill="#ff5f57"/>', '<circle cx="40" cy="17" r="6" fill="#febc2e"/>',
             '<circle cx="60" cy="17" r="6" fill="#28c840"/>',
             f'<text x="{width / 2}" y="22" text-anchor="middle" font-family="-apple-system, BlinkMacSystemFont, \'Segoe UI\', sans-serif" font-size="13" fill="#9da1a8">Terminal - storage-doctor.sh</text>']
-
-
-C = {"SAFE": "green", "CAUTION": "yellow", "REVIEW": "red"}
-mac = [[("storage-doctor 0.2.0", "bold"), (" - MacBook Air, macOS 15.5", "dim")],
-       [("  Read-only scan. Nothing is deleted unless you run --clean and confirm.", "dim")]]
-mac += section("Disk", "cyan+bold")
-mac += [row("Capacity", "494.4 GB"), bar_row("Used", "431.2 GB", 87, "yellow"),
-        [(f"  {'Free':<22} ", None), ("63.2 GB", "bold")],
-        row("  macOS (read-only)", "11.8 GB"), row("  Your data volume", "402.6 GB"),
-        row("  Other volumes", "16.8 GB", "(swap, recovery, updates)"),
-        [("  Finder may show more free space: it also counts 'purgeable' space macOS can free on its own.", "dim")]]
-mac += section("Memory (RAM)", "cyan+bold")
-mac += [row("Physical memory", "16.0 GB"), bar_row("Used", "11.4 GB", 71, "green"),
-        row("  App memory", "6.1 GB"), row("  Wired", "2.3 GB", "(kernel, cannot be freed)"),
-        row("  Compressed", "3.0 GB"), row("Cached files", "3.9 GB", "(freed instantly when apps need it)"),
-        row("Free", "712 MB"), row("Swap used", "1.2 GB of 2.0 GB"),
-        [(f"  {'Memory pressure':<22} ", None), ("Normal", "green"), (" (52% available)", "dim")], [],
-        [("  Top apps by memory", "bold"), (" (resident memory, approximate)", "dim")]]
-for size, app, n in [("3.1 GB", "Google Chrome", 24), ("1.2 GB", "Slack", 6), ("1.1 GB", "Code", 9),
-                     ("842 MB", "Docker Desktop", 4), ("612 MB", "Spotify", 3), ("214 MB", "Finder", 1)]:
-    mac.append([(f"    {size:<10} {app}", None)] + ([(f" ({n} processes)", "dim")] if n > 1 else []))
-mac.append([("  High 'used' memory is normal on macOS. Only memory pressure tells you if RAM is a problem.", "dim")])
-mac += section("Space hogs", "cyan+bold")
-mac.append([(f"  {'SIZE':<10} {'SAFETY':<7}  WHAT", "dim")])
-for size, s, label, note, path in [
-    ("24.3 GB", "REVIEW", "Photos library (Photos Library.photoslibrary)",
-     "Never delete files inside it. Use the Photos app or iCloud 'Optimize Mac Storage'.", "~/Pictures/Photos Library.photoslibrary"),
-    ("14.8 GB", "SAFE", "User app caches", "Apps rebuild these on demand. Quit apps before cleaning.", "~/Library/Caches"),
-    ("9.6 GB", "CAUTION", "Docker Desktop disk image",
-     "Clean runs 'docker system prune': stopped containers, dangling images, build cache. Volumes are kept.",
-     "~/Library/Containers/com.docker.docker/Data/vms"),
-    ("7.2 GB", "SAFE", "Xcode DerivedData", "Build intermediates. The next build is slower, nothing is lost.",
-     "~/Library/Developer/Xcode/DerivedData"),
-    ("5.1 GB", "REVIEW", "iPhone / iPad backups",
-     "Delete old backups in Finder > your device > Manage Backups, never by hand.", "~/Library/Application Support/MobileSync/Backup"),
-    ("2.4 GB", "SAFE", "npm cache", "Packages are downloaded again when needed.", "~/.npm/_cacache"),
-    ("1.9 GB", "CAUTION", "Installer files (6 .dmg/.pkg/.xip/.iso)",
-     "Rarely needed after installing. Clean moves them to the Trash, so it can be undone.", None),
-]:
-    mac += item(size, s, C[s], label, note, path, 22)
-mac += section("Delete commands", "cyan+bold")
-mac += [[("  Prefer --clean: it asks per item and only touches allowlisted folders.", "dim")],
-        [("  To clean by hand, quit the related apps and copy the command under an item.", "dim")]]
-for s_, label, size, cmds in [
-    ("SAFE", "User app caches", "14.8 GB", ['rm -rf "$HOME/Library/Caches"/*']),
-    ("CAUTION", "Docker Desktop disk image", "9.6 GB", ["docker system prune --force"]),
-    ("SAFE", "Xcode DerivedData", "7.2 GB", ['rm -rf "$HOME/Library/Developer/Xcode/DerivedData"/*']),
-    ("SAFE", "npm cache", "2.4 GB", ["npm cache clean --force"]),
-]:
-    mac += [[], [("  ", None), (f"{s_:<7}", C[s_]), ("  " + label, "bold"), (f" ({size})", "dim")]]
-    mac += [[("    " + c, None)] for c in cmds]
-mac += section("Summary", "cyan+bold")
-mac += summary([("SAFE", "24.4 GB", "regenerated automatically, no data loss"),
-                ("CAUTION", "11.5 GB", "regenerable, read the note first"),
-                ("REVIEW", "29.4 GB", "your data, check by hand (never cleaned by storage-doctor)")], C)
-mac += [[], [("  Run ", None), ("storage-doctor.sh --clean", "bold"), (" to clean SAFE and CAUTION items (asks for each one),", None)],
-        [("  or ", None), ("storage-doctor.sh --dry-run", "bold"), (" to preview without changing anything.", None)]]
-
-render("screenshot-macos.svg", "bash storage-doctor.sh", mac,
-       {"palette": mac_palette, "radius": 10, "chrome": mac_chrome, "prompt_prefix": "~ $ ",
-        "aria": "Example storage-doctor output on macOS, with sample data"})
-
-# -------------------------------------------------------------- Windows ----
-
-win_palette = {"bg": "#0c0c0c", "bar": "#202020", "fg": "#cccccc", "bold": "#cccccc", "dim": "#767676",
-               "green": "#16c60c", "yellow": "#c19c00", "red": "#e74856", "cyan": "#3a96dd", "prompt": "#cccccc", "weight": "normal"}
 
 
 def win_chrome(width):
@@ -180,71 +287,24 @@ def win_chrome(width):
             f'<path d="M{width - 26} 12 l10 10 M{width - 16} 12 l-10 10" stroke="#cccccc" stroke-width="1"/>']
 
 
-win = [[("storage-doctor 0.2.0", None), (" - DESKTOP-7K2M4QX, Microsoft Windows 11 Pro 10.0.26100", "dim")],
-       [("  Read-only scan. Nothing is deleted unless you run -Clean and confirm.", "dim")]]
-win += section("Disk", "cyan")
-win += [[("  C: (system drive)", None)], row("  Capacity", "475.8 GB"), bar_row("  Used", "412.3 GB", 86, "yellow"),
-        row("  Free", "63.5 GB"),
-        [("  D: Data", None)], row("  Capacity", "931.5 GB"), bar_row("  Used", "288.1 GB", 30, "green"),
-        row("  Free", "643.4 GB")]
-win += section("Memory (RAM)", "cyan")
-win += [row("Physical memory", "16.0 GB"), bar_row("In use", "10.9 GB", 68, "green"),
-        row("  Compressed", "1.4 GB"), row("Cached", "4.2 GB", "(freed instantly when apps need it)"),
-        row("Available", "5.1 GB"), row("Committed", "14.6 GB of 34.9 GB", "(41%, RAM + page file)"),
-        row("Page file used", "1.1 GB of 18.9 GB"),
-        [(f"  {'Memory pressure':<22} ", None), ("Normal", "green"), (" (31% available)", "dim")], [],
-        [("  Top apps by memory", None), (" (working set, approximate)", "dim")]]
-for size, app, n in [("2.7 GB", "chrome", 31), ("1.3 GB", "Code", 11), ("1.1 GB", "svchost", 94),
-                     ("986 MB", "ms-teams", 4), ("604 MB", "explorer", 1), ("433 MB", "Discord", 6)]:
-    win.append([(f"    {size:<10} {app}", None)] + ([(f" ({n} processes)", "dim")] if n > 1 else []))
-win.append([('  High "in use" memory is normal. Only memory pressure tells you if RAM is a problem.', "dim")])
-win += section("Space hogs", "cyan")
-win.append([(f"  {'SIZE':<10} {'SAFETY':<7}  WHAT", "dim")])
-for size, s, label, note, path in [
-    ("41.2 GB", "REVIEW", "WSL Linux distros",
-     "Your Linux files. 'wsl --unregister <name>' removes an unused distro and everything in it.",
-     "~\\AppData\\Local\\Packages\\CanonicalGroupLimited.Ubuntu_79rhkp1fndgsc\\LocalState\\ext4.vhdx"),
-    ("12.6 GB", "SAFE", "Browser caches (Chrome, Edge, Brave, Firefox)",
-     "Web page caches. Close the browser before cleaning.", "~\\AppData\\Local\\Google\\Chrome\\User Data\\Default\\Cache"),
-    ("8.4 GB", "SAFE", "Temporary files", "Leftovers from installers and apps. Files still in use are skipped.",
-     "~\\AppData\\Local\\Temp"),
-    ("6.9 GB", "CAUTION", "Docker Desktop data",
-     "Clean runs 'docker system prune': stopped containers, dangling images, build cache. Volumes are kept.",
-     "~\\AppData\\Local\\Docker\\wsl"),
-    ("3.8 GB", "REVIEW", "Downloads folder", "Your files. Sort by size in Explorer and remove what you no longer need.",
-     "~\\Downloads"),
-    ("2.2 GB", "SAFE", "npm cache", "Packages are downloaded again when needed.", "~\\AppData\\Local\\npm-cache"),
-    ("1.7 GB", "CAUTION", "Installer files (9 .msi/.iso/setup.exe)",
-     "Rarely needed after installing. Clean moves them to the Recycle Bin, so it can be undone.", None),
-]:
-    win += item(size, s, C[s], label, note, path, 22)
-win.append([("  Run as administrator to also measure system caches (Windows Update, crash dumps, Windows.old).", "dim")])
-win += section("Delete commands", "cyan")
-win += [[("  Prefer -Clean: it asks per item and only touches allowlisted folders.", "dim")],
-        [("  To clean by hand, close the related apps and copy the commands under an item.", "dim")], [],
-        [("  Paste this helper once per PowerShell window. It empties a folder without following links:", "dim")],
-        ("wrap", "    function Clear-Folder($Path) { Get-ChildItem -LiteralPath $Path -Force -ErrorAction SilentlyContinue"
-                 " | ForEach-Object { if ($_.PSIsContainer -and ($_.Attributes -band [IO.FileAttributes]::ReparsePoint))"
-                 ' { cmd /c rd "$($_.FullName)" } elseif ($_.PSIsContainer) { cmd /c rd /s /q "$($_.FullName)" 2>$null }'
-                 " else { Remove-Item -LiteralPath $_.FullName -Force -ErrorAction SilentlyContinue } } }")]
-for s_, label, size, cmds in [
-    ("SAFE", "Browser caches (Chrome, Edge, Brave, Firefox)", "12.6 GB",
-     ['Clear-Folder "$env:LOCALAPPDATA\\Google\\Chrome\\User Data\\Default\\Cache"',
-      'Clear-Folder "$env:LOCALAPPDATA\\Google\\Chrome\\User Data\\Default\\Code Cache"',
-      'Clear-Folder "$env:LOCALAPPDATA\\Microsoft\\Edge\\User Data\\Default\\Cache"']),
-    ("SAFE", "Temporary files", "8.4 GB", ['Clear-Folder "$env:LOCALAPPDATA\\Temp"']),
-    ("CAUTION", "Docker Desktop data", "6.9 GB", ["docker system prune --force"]),
-    ("SAFE", "npm cache", "2.2 GB", ["npm cache clean --force"]),
-]:
-    win += [[], [("  ", None), (f"{s_:<7}", C[s_]), ("  " + label, None), (f" ({size})", "dim")]]
-    win += [[("    " + c, None)] for c in cmds]
-win += section("Summary", "cyan")
-win += summary([("SAFE", "23.2 GB", "regenerated automatically, no data loss"),
-                ("CAUTION", "8.6 GB", "regenerable, read the note first"),
-                ("REVIEW", "45.0 GB", "your data, check by hand (never cleaned by storage-doctor)")], C)
-win += [[], [("  Run again with -Clean to clean SAFE and CAUTION items (asks for each one),", None)],
-        [("  or with -DryRun to preview without changing anything.", None)]]
+MAC_THEME = {  # One Dark-like colors for macOS Terminal
+    "palette": {"bg": "#1e1f22", "bar": "#2b2d31", "fg": "#d7dae0", "bold": "#ffffff", "dim": "#7f848e",
+                "prompt": "#98c379",
+                "ansi": {31: "#e06c75", 32: "#98c379", 33: "#e5c07b", 36: "#56b6c2", 90: "#7f848e"}},
+    "radius": 10, "chrome": mac_chrome, "prompt_prefix": "~ $ ",
+    "aria": "Example storage-doctor output on macOS, with sample data",
+}
+WIN_THEME = {  # Windows Terminal "Campbell" colors
+    "palette": {"bg": "#0c0c0c", "bar": "#202020", "fg": "#cccccc", "bold": "#cccccc", "dim": "#767676",
+                "prompt": "#cccccc",
+                "ansi": {31: "#c50f1f", 32: "#13a10e", 33: "#c19c00", 36: "#3a96dd", 37: "#cccccc",
+                         90: "#767676", 91: "#e74856", 92: "#16c60c", 93: "#f9f1a5", 96: "#61d6d6", 97: "#f2f2f2"}},
+    "radius": 8, "chrome": win_chrome, "prompt_prefix": "PS C:\\Users\\alex> ",
+    "aria": "Example storage-doctor output on Windows, with sample data",
+}
 
-render("screenshot-windows.svg", "powershell -ExecutionPolicy Bypass -File .\\storage-doctor.ps1", win,
-       {"palette": win_palette, "radius": 8, "chrome": win_chrome, "prompt_prefix": "PS C:\\Users\\alex> ",
-        "aria": "Example storage-doctor output on Windows, with sample data"})
+
+if __name__ == "__main__":
+    render("screenshot-macos.svg", "bash storage-doctor.sh --quick", parse_ansi(mac_output()), MAC_THEME)
+    render("screenshot-windows.svg", "powershell -ExecutionPolicy Bypass -File .\\storage-doctor.ps1 -Quick",
+           parse_ansi(windows_output()), WIN_THEME)

@@ -17,6 +17,10 @@ jobs:
         run: /bin/bash macos/storage-doctor.sh --no-color
       - name: Printed delete commands are safe
         run: tests/macos-delete-commands.sh
+      - name: README screenshots match the current output
+        run: |
+          python3 docs/make-screenshots.py
+          git diff --exit-code -- docs/ || { echo "::error::Screenshots are out of date. Run: python3 docs/make-screenshots.py"; exit 1; }
 
   windows:
     runs-on: windows-latest
@@ -29,7 +33,8 @@ jobs:
             throw 'storage-doctor.ps1 must be ASCII only: Windows PowerShell 5.1 misreads other characters'
           }
           Install-Module PSScriptAnalyzer -Force -Scope CurrentUser
-          $results = Invoke-ScriptAnalyzer -Path windows/storage-doctor.ps1 -Settings windows/PSScriptAnalyzerSettings.psd1
+          $results = 'windows/storage-doctor.ps1', 'tests/windows-clear-folder.ps1', 'docs/screenshot-data-windows.ps1' |
+            ForEach-Object { Invoke-ScriptAnalyzer -Path $_ -Settings windows/PSScriptAnalyzerSettings.psd1 }
           $results | Format-Table -AutoSize
           if ($results) { exit 1 }
       - name: Read-only scan with Windows PowerShell 5.1

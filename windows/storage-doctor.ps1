@@ -51,6 +51,7 @@ Set-StrictMode -Version 2.0
 $ScriptVersion = '0.2.0'
 $DoClean = [bool]($Clean -or $DryRun)
 $DryRunMode = [bool]$DryRun
+$SkipSlowScans = [bool]$Quick
 $LargeBytes = [long]$LargeMB * 1MB
 $ExtraDevDirs = @($DevDir)
 $UseColor = -not $NoColor -and -not $env:NO_COLOR
@@ -119,6 +120,8 @@ function Write-Row([string]$Label, [string]$Value, [string]$Hint) {
 }
 
 function Test-Command([string]$Name) { return [bool](Get-Command $Name -ErrorAction SilentlyContinue) }
+
+function Get-UserSid { return [Security.Principal.WindowsIdentity]::GetCurrent().User.Value }
 
 function Test-Admin {
     $principal = New-Object Security.Principal.WindowsPrincipal ([Security.Principal.WindowsIdentity]::GetCurrent())
@@ -333,7 +336,7 @@ function Initialize-Item {
     $R = $env:APPDATA
     $U = $env:USERPROFILE
     $W = $env:windir
-    $sid = [Security.Principal.WindowsIdentity]::GetCurrent().User.Value
+    $sid = Get-UserSid
     $script:Downloads = Get-KnownFolder '{374DE290-123F-4565-9164-39C4925E467B}' (Join-Path $U 'Downloads')
     $script:Desktop = [Environment]::GetFolderPath('Desktop')
 
@@ -612,14 +615,20 @@ function Show-LargeFile {
 # Things Windows manages itself
 # ---------------------------------------------------------------------------
 
-function Show-SystemInfo {
-    Write-Section 'Managed by Windows (do not delete by hand)'
-    # FileInfo reads the size from the directory entry, which works for locked system files.
+# Page, hibernation and swap files that exist. FileInfo reads the size from the
+# directory entry, which works for locked system files.
+function Get-SystemFile {
     $paths = @(Get-CimInstance Win32_PageFileUsage -ErrorAction SilentlyContinue | ForEach-Object { $_.Name }) +
         @("$env:SystemDrive\hiberfil.sys", "$env:SystemDrive\swapfile.sys")
     foreach ($path in ($paths | Select-Object -Unique)) {
         $f = New-Object System.IO.FileInfo $path
-        if (-not $f.Exists) { continue }
+        if ($f.Exists) { $f }
+    }
+}
+
+function Show-SystemInfo {
+    Write-Section 'Managed by Windows (do not delete by hand)'
+    foreach ($f in @(Get-SystemFile)) {
         $name = $f.Name.ToLowerInvariant()
         Write-Row $f.FullName (Format-Size $f.Length)
         switch ($name) {
@@ -836,8 +845,32 @@ function Invoke-Clean {
 
 # ---------------------------------------------------------------------------
 # Main. Dot-sourcing the script (". .\storage-doctor.ps1") only loads the
-# functions, which is handy for testing.
+# functions, which is handy for tests and for drawing the README screenshots.
 # ---------------------------------------------------------------------------
+
+function Invoke-StorageDoctor {
+    $script:IsAdmin = Test-Admin
+    $os = Get-CimInstance Win32_OperatingSystem
+    Write-Text "storage-doctor $ScriptVersion" '' -NoNewline
+    Write-Text " - $env:COMPUTERNAME, $($os.Caption) $($os.Version)" DarkGray
+    Write-Note 'Read-only scan. Nothing is deleted unless you run -Clean and confirm.'
+    if ($IsAdmin) { Write-Note 'Running as administrator: system caches are included.' }
+
+    Show-Disk
+    Show-Memory
+    Initialize-Item
+    Measure-Item
+    Show-Item
+    Show-DeleteCommand
+    if (-not $SkipSlowScans) {
+        Show-AppDataBreakdown
+        Show-DevProject
+        Show-LargeFile
+    }
+    Show-SystemInfo
+    Show-Summary
+    if ($DoClean) { Invoke-Clean }
+}
 
 if ($MyInvocation.InvocationName -eq '.') { return }
 
@@ -847,24 +880,4 @@ if ($PSVersionTable.PSVersion.Major -ge 6 -and -not $IsWindows) {
     exit 1
 }
 
-$IsAdmin = Test-Admin
-$os = Get-CimInstance Win32_OperatingSystem
-Write-Text "storage-doctor $ScriptVersion" '' -NoNewline
-Write-Text " - $env:COMPUTERNAME, $($os.Caption) $($os.Version)" DarkGray
-Write-Note 'Read-only scan. Nothing is deleted unless you run -Clean and confirm.'
-if ($IsAdmin) { Write-Note 'Running as administrator: system caches are included.' }
-
-Show-Disk
-Show-Memory
-Initialize-Item
-Measure-Item
-Show-Item
-Show-DeleteCommand
-if (-not $Quick) {
-    Show-AppDataBreakdown
-    Show-DevProject
-    Show-LargeFile
-}
-Show-SystemInfo
-Show-Summary
-if ($DoClean) { Invoke-Clean }
+Invoke-StorageDoctor

@@ -1,5 +1,5 @@
-<svg xmlns="http://www.w3.org/2000/svg" width="1034" height="1766" viewBox="0 0 1034 1766" role="img" aria-label="Example storage-doctor output on Windows, with sample data">
-<rect width="1034" height="1766" rx="8" fill="#0c0c0c"/>
+<svg xmlns="http://www.w3.org/2000/svg" width="1034" height="2072" viewBox="0 0 1034 2072" role="img" aria-label="Example storage-doctor output on Windows, with sample data">
+<rect width="1034" height="2072" rx="8" fill="#0c0c0c"/>
 <rect width="1034" height="34" rx="8" fill="#202020"/>
 <rect y="26" width="1034" height="8" fill="#202020"/>
 <rect x="8" y="6" width="190" height="28" rx="6" fill="#0c0c0c"/>
@@ -10,7 +10,7 @@
 <rect x="963" y="12" width="10" height="10" fill="none" stroke="#cccccc" stroke-width="1"/>
 <path d="M1008 12 l10 10 M1018 12 l-10 10" stroke="#cccccc" stroke-width="1"/>
 <text font-family="ui-monospace, SFMono-Regular, Menlo, Consolas, 'Cascadia Mono', monospace" font-size="13" fill="#cccccc" xml:space="preserve">
-<tspan x="20" y="58"><tspan fill="#cccccc">PS C:\Users\alex&gt; </tspan>powershell -ExecutionPolicy Bypass -File .\storage-doctor.ps1</tspan>
+<tspan x="20" y="58"><tspan fill="#cccccc">PS C:\Users\alex&gt; </tspan>powershell -ExecutionPolicy Bypass -File .\storage-doctor.ps1 -Quick</tspan>
 <tspan x="20" y="94">storage-doctor 0.2.0<tspan fill="#767676"> - DESKTOP-7K2M4QX, Microsoft Windows 11 Pro 10.0.26100</tspan></tspan>
 <tspan x="20" y="112"><tspan fill="#767676">  Read-only scan. Nothing is deleted unless you run -Clean and confirm.</tspan></tspan>
 <tspan x="20" y="148"><tspan fill="#3a96dd">Disk</tspan></tspan>
@@ -40,55 +40,70 @@
 <tspan x="20" y="616">    986 MB     ms-teams<tspan fill="#767676"> (4 processes)</tspan></tspan>
 <tspan x="20" y="634">    604 MB     explorer</tspan>
 <tspan x="20" y="652">    433 MB     Discord<tspan fill="#767676"> (6 processes)</tspan></tspan>
-<tspan x="20" y="670"><tspan fill="#767676">  High "in use" memory is normal. Only memory pressure tells you if RAM is a problem.</tspan></tspan>
-<tspan x="20" y="706"><tspan fill="#3a96dd">Space hogs</tspan></tspan>
-<tspan x="20" y="724"><tspan fill="#767676">------------------------------------------------------------</tspan></tspan>
-<tspan x="20" y="742"><tspan fill="#767676">  SIZE       SAFETY   WHAT</tspan></tspan>
-<tspan x="20" y="760">  41.2 GB    <tspan fill="#e74856">REVIEW </tspan><tspan font-weight="normal" fill="#cccccc">  WSL Linux distros</tspan></tspan>
-<tspan x="20" y="778"><tspan fill="#767676">                      Your Linux files. 'wsl --unregister &lt;name&gt;' removes an unused distro and everything in it.</tspan></tspan>
-<tspan x="20" y="796"><tspan fill="#767676">                      ~\AppData\Local\Packages\CanonicalGroupLimited.Ubuntu_79rhkp1fndgsc\LocalState\ext4.vhdx</tspan></tspan>
-<tspan x="20" y="814">  12.6 GB    <tspan fill="#16c60c">SAFE   </tspan><tspan font-weight="normal" fill="#cccccc">  Browser caches (Chrome, Edge, Brave, Firefox)</tspan></tspan>
-<tspan x="20" y="832"><tspan fill="#767676">                      Web page caches. Close the browser before cleaning.</tspan></tspan>
-<tspan x="20" y="850"><tspan fill="#767676">                      ~\AppData\Local\Google\Chrome\User Data\Default\Cache</tspan></tspan>
-<tspan x="20" y="868">  8.4 GB     <tspan fill="#16c60c">SAFE   </tspan><tspan font-weight="normal" fill="#cccccc">  Temporary files</tspan></tspan>
-<tspan x="20" y="886"><tspan fill="#767676">                      Leftovers from installers and apps. Files still in use are skipped.</tspan></tspan>
-<tspan x="20" y="904"><tspan fill="#767676">                      ~\AppData\Local\Temp</tspan></tspan>
-<tspan x="20" y="922">  6.9 GB     <tspan fill="#c19c00">CAUTION</tspan><tspan font-weight="normal" fill="#cccccc">  Docker Desktop data</tspan></tspan>
-<tspan x="20" y="940"><tspan fill="#767676">                      Clean runs 'docker system prune': stopped containers, dangling images, build cache. Volumes are kept.</tspan></tspan>
-<tspan x="20" y="958"><tspan fill="#767676">                      ~\AppData\Local\Docker\wsl</tspan></tspan>
-<tspan x="20" y="976">  3.8 GB     <tspan fill="#e74856">REVIEW </tspan><tspan font-weight="normal" fill="#cccccc">  Downloads folder</tspan></tspan>
-<tspan x="20" y="994"><tspan fill="#767676">                      Your files. Sort by size in Explorer and remove what you no longer need.</tspan></tspan>
-<tspan x="20" y="1012"><tspan fill="#767676">                      ~\Downloads</tspan></tspan>
-<tspan x="20" y="1030">  2.2 GB     <tspan fill="#16c60c">SAFE   </tspan><tspan font-weight="normal" fill="#cccccc">  npm cache</tspan></tspan>
-<tspan x="20" y="1048"><tspan fill="#767676">                      Packages are downloaded again when needed.</tspan></tspan>
-<tspan x="20" y="1066"><tspan fill="#767676">                      ~\AppData\Local\npm-cache</tspan></tspan>
-<tspan x="20" y="1084">  1.7 GB     <tspan fill="#c19c00">CAUTION</tspan><tspan font-weight="normal" fill="#cccccc">  Installer files (9 .msi/.iso/setup.exe)</tspan></tspan>
-<tspan x="20" y="1102"><tspan fill="#767676">                      Rarely needed after installing. Clean moves them to the Recycle Bin, so it can be undone.</tspan></tspan>
-<tspan x="20" y="1120"><tspan fill="#767676">  Run as administrator to also measure system caches (Windows Update, crash dumps, Windows.old).</tspan></tspan>
-<tspan x="20" y="1156"><tspan fill="#3a96dd">Delete commands</tspan></tspan>
-<tspan x="20" y="1174"><tspan fill="#767676">------------------------------------------------------------</tspan></tspan>
-<tspan x="20" y="1192"><tspan fill="#767676">  Prefer -Clean: it asks per item and only touches allowlisted folders.</tspan></tspan>
-<tspan x="20" y="1210"><tspan fill="#767676">  To clean by hand, close the related apps and copy the commands under an item.</tspan></tspan>
-<tspan x="20" y="1246"><tspan fill="#767676">  Paste this helper once per PowerShell window. It empties a folder without following links:</tspan></tspan>
-<tspan x="20" y="1264">    function Clear-Folder($Path) { Get-ChildItem -LiteralPath $Path -Force -ErrorAction SilentlyContinue | ForEach-Object {</tspan>
-<tspan x="20" y="1282"> if ($_.PSIsContainer -and ($_.Attributes -band [IO.FileAttributes]::ReparsePoint)) { cmd /c rd "$($_.FullName)" } elseif (</tspan>
-<tspan x="20" y="1300">$_.PSIsContainer) { cmd /c rd /s /q "$($_.FullName)" 2&gt;$null } else { Remove-Item -LiteralPath $_.FullName -Force -ErrorAct</tspan>
-<tspan x="20" y="1318">ion SilentlyContinue } } }</tspan>
-<tspan x="20" y="1354">  <tspan fill="#16c60c">SAFE   </tspan>  Browser caches (Chrome, Edge, Brave, Firefox)<tspan fill="#767676"> (12.6 GB)</tspan></tspan>
-<tspan x="20" y="1372">    Clear-Folder "$env:LOCALAPPDATA\Google\Chrome\User Data\Default\Cache"</tspan>
-<tspan x="20" y="1390">    Clear-Folder "$env:LOCALAPPDATA\Google\Chrome\User Data\Default\Code Cache"</tspan>
-<tspan x="20" y="1408">    Clear-Folder "$env:LOCALAPPDATA\Microsoft\Edge\User Data\Default\Cache"</tspan>
-<tspan x="20" y="1444">  <tspan fill="#16c60c">SAFE   </tspan>  Temporary files<tspan fill="#767676"> (8.4 GB)</tspan></tspan>
-<tspan x="20" y="1462">    Clear-Folder "$env:LOCALAPPDATA\Temp"</tspan>
-<tspan x="20" y="1498">  <tspan fill="#c19c00">CAUTION</tspan>  Docker Desktop data<tspan fill="#767676"> (6.9 GB)</tspan></tspan>
-<tspan x="20" y="1516">    docker system prune --force</tspan>
-<tspan x="20" y="1552">  <tspan fill="#16c60c">SAFE   </tspan>  npm cache<tspan fill="#767676"> (2.2 GB)</tspan></tspan>
-<tspan x="20" y="1570">    npm cache clean --force</tspan>
-<tspan x="20" y="1606"><tspan fill="#3a96dd">Summary</tspan></tspan>
-<tspan x="20" y="1624"><tspan fill="#767676">------------------------------------------------------------</tspan></tspan>
-<tspan x="20" y="1642">  <tspan fill="#16c60c">SAFE   </tspan><tspan font-weight="normal" fill="#cccccc">  23.2 GB   </tspan> regenerated automatically, no data loss</tspan>
-<tspan x="20" y="1660">  <tspan fill="#c19c00">CAUTION</tspan><tspan font-weight="normal" fill="#cccccc">  8.6 GB    </tspan> regenerable, read the note first</tspan>
-<tspan x="20" y="1678">  <tspan fill="#e74856">REVIEW </tspan><tspan font-weight="normal" fill="#cccccc">  45.0 GB   </tspan> your data, check by hand (never cleaned by storage-doctor)</tspan>
-<tspan x="20" y="1714">  Run again with -Clean to clean SAFE and CAUTION items (asks for each one),</tspan>
-<tspan x="20" y="1732">  or with -DryRun to preview without changing anything.</tspan>
+<tspan x="20" y="670">    388 MB     OneDrive</tspan>
+<tspan x="20" y="688">    312 MB     MsMpEng</tspan>
+<tspan x="20" y="706"><tspan fill="#767676">  High "in use" memory is normal. Only memory pressure tells you if RAM is a problem.</tspan></tspan>
+<tspan x="20" y="742"><tspan fill="#3a96dd">Space hogs</tspan></tspan>
+<tspan x="20" y="760"><tspan fill="#767676">------------------------------------------------------------</tspan></tspan>
+<tspan x="20" y="778"><tspan fill="#767676">  SIZE       SAFETY   WHAT</tspan></tspan>
+<tspan x="20" y="796">  41.2 GB    <tspan fill="#e74856">REVIEW </tspan>  WSL Linux distros</tspan>
+<tspan x="20" y="814"><tspan fill="#767676">                      Your Linux files. 'wsl --unregister &lt;name&gt;' removes an unused distro and everything in it.</tspan></tspan>
+<tspan x="20" y="832"><tspan fill="#767676">                      ~\AppData\Local\Packages\CanonicalGroupLimited.Ubuntu_79rhkp1fndgsc\LocalState\ext4.vhdx</tspan></tspan>
+<tspan x="20" y="850">  12.6 GB    <tspan fill="#16c60c">SAFE   </tspan>  Browser caches (Chrome, Edge, Brave, Firefox)</tspan>
+<tspan x="20" y="868"><tspan fill="#767676">                      Web page caches. Close the browser before cleaning.</tspan></tspan>
+<tspan x="20" y="886"><tspan fill="#767676">                      ~\AppData\Local\Google\Chrome\User Data\Default\Cache</tspan></tspan>
+<tspan x="20" y="904">  8.4 GB     <tspan fill="#16c60c">SAFE   </tspan>  Temporary files</tspan>
+<tspan x="20" y="922"><tspan fill="#767676">                      Leftovers from installers and apps. Files still in use are skipped.</tspan></tspan>
+<tspan x="20" y="940"><tspan fill="#767676">                      ~\AppData\Local\Temp</tspan></tspan>
+<tspan x="20" y="958">  6.9 GB     <tspan fill="#c19c00">CAUTION</tspan>  Docker Desktop data</tspan>
+<tspan x="20" y="976"><tspan fill="#767676">                      Clean runs 'docker system prune': stopped containers, dangling images, build cache. Volumes are kept.</tspan></tspan>
+<tspan x="20" y="994"><tspan fill="#767676">                      ~\AppData\Local\Docker\wsl</tspan></tspan>
+<tspan x="20" y="1012">  3.8 GB     <tspan fill="#e74856">REVIEW </tspan>  Downloads folder</tspan>
+<tspan x="20" y="1030"><tspan fill="#767676">                      Your files. Sort by size in Explorer and remove what you no longer need.</tspan></tspan>
+<tspan x="20" y="1048"><tspan fill="#767676">                      ~\Downloads</tspan></tspan>
+<tspan x="20" y="1066">  2.2 GB     <tspan fill="#16c60c">SAFE   </tspan>  npm cache</tspan>
+<tspan x="20" y="1084"><tspan fill="#767676">                      Packages are downloaded again when needed.</tspan></tspan>
+<tspan x="20" y="1102"><tspan fill="#767676">                      ~\AppData\Local\npm-cache</tspan></tspan>
+<tspan x="20" y="1120">  1.7 GB     <tspan fill="#c19c00">CAUTION</tspan>  Installer files (9 .msi/.iso/setup.exe)</tspan>
+<tspan x="20" y="1138"><tspan fill="#767676">                      Rarely needed after installing. Clean moves them to the Recycle Bin, so it can be undone.</tspan></tspan>
+<tspan x="20" y="1156"><tspan fill="#767676">  Run as administrator to also measure system caches (Windows Update, crash dumps, Windows.old).</tspan></tspan>
+<tspan x="20" y="1192"><tspan fill="#3a96dd">Delete commands</tspan></tspan>
+<tspan x="20" y="1210"><tspan fill="#767676">------------------------------------------------------------</tspan></tspan>
+<tspan x="20" y="1228"><tspan fill="#767676">  Prefer -Clean: it asks per item and only touches allowlisted folders.</tspan></tspan>
+<tspan x="20" y="1246"><tspan fill="#767676">  To clean by hand, close the related apps and copy the commands under an item.</tspan></tspan>
+<tspan x="20" y="1282"><tspan fill="#767676">  Paste this helper once per PowerShell window. It empties a folder without following links:</tspan></tspan>
+<tspan x="20" y="1300">    function Clear-Folder($Path) { Get-ChildItem -LiteralPath $Path -Force -ErrorAction SilentlyContinue | ForEach-Object {</tspan>
+<tspan x="20" y="1318"> if ($_.PSIsContainer -and ($_.Attributes -band [IO.FileAttributes]::ReparsePoint)) { cmd /c rd "$($_.FullName)" } elseif (</tspan>
+<tspan x="20" y="1336">$_.PSIsContainer) { cmd /c rd /s /q "$($_.FullName)" 2&gt;$null } else { Remove-Item -LiteralPath $_.FullName -Force -ErrorAct</tspan>
+<tspan x="20" y="1354">ion SilentlyContinue } } }</tspan>
+<tspan x="20" y="1390">  <tspan fill="#16c60c">SAFE   </tspan>  Browser caches (Chrome, Edge, Brave, Firefox)<tspan fill="#767676"> (12.6 GB)</tspan></tspan>
+<tspan x="20" y="1408">    Clear-Folder "$env:LOCALAPPDATA\Google\Chrome\User Data\Default\Cache"</tspan>
+<tspan x="20" y="1426">    Clear-Folder "$env:LOCALAPPDATA\Google\Chrome\User Data\Default\Code Cache"</tspan>
+<tspan x="20" y="1444">    Clear-Folder "$env:LOCALAPPDATA\Microsoft\Edge\User Data\Default\Cache"</tspan>
+<tspan x="20" y="1480">  <tspan fill="#16c60c">SAFE   </tspan>  Temporary files<tspan fill="#767676"> (8.4 GB)</tspan></tspan>
+<tspan x="20" y="1498">    Clear-Folder "$env:LOCALAPPDATA\Temp"</tspan>
+<tspan x="20" y="1534">  <tspan fill="#c19c00">CAUTION</tspan>  Docker Desktop data<tspan fill="#767676"> (6.9 GB)</tspan></tspan>
+<tspan x="20" y="1552">    docker system prune --force</tspan>
+<tspan x="20" y="1588">  <tspan fill="#16c60c">SAFE   </tspan>  npm cache<tspan fill="#767676"> (2.2 GB)</tspan></tspan>
+<tspan x="20" y="1606">    npm cache clean --force</tspan>
+<tspan x="20" y="1642"><tspan fill="#3a96dd">Managed by Windows (do not delete by hand)</tspan></tspan>
+<tspan x="20" y="1660"><tspan fill="#767676">------------------------------------------------------------</tspan></tspan>
+<tspan x="20" y="1678">  C:\pagefile.sys        18.9 GB</tspan>
+<tspan x="20" y="1696"><tspan fill="#767676">  Virtual memory. Windows sizes it automatically.</tspan></tspan>
+<tspan x="20" y="1714">  C:\hiberfil.sys        6.4 GB</tspan>
+<tspan x="20" y="1732"><tspan fill="#767676">  Hibernation. 'powercfg /hibernate off' (admin) frees it, but also disables Fast Startup.</tspan></tspan>
+<tspan x="20" y="1750">  WinSxS                 Windows component store</tspan>
+<tspan x="20" y="1768"><tspan fill="#767676">  Looks huge in Explorer because of hard links. Never delete it by hand; as admin, run</tspan></tspan>
+<tspan x="20" y="1786"><tspan fill="#767676">  'Dism /Online /Cleanup-Image /StartComponentCleanup' to trim old versions.</tspan></tspan>
+<tspan x="20" y="1804">  Restore points         System Protection</tspan>
+<tspan x="20" y="1822"><tspan fill="#767676">  Manage their size in Control Panel &gt; System &gt; System Protection &gt; Configure.</tspan></tspan>
+<tspan x="20" y="1840">  Storage Sense          Settings &gt; System &gt; Storage</tspan>
+<tspan x="20" y="1858"><tspan fill="#767676">  Can empty temp files and the Recycle Bin for you on a schedule.</tspan></tspan>
+<tspan x="20" y="1894"><tspan fill="#3a96dd">Summary</tspan></tspan>
+<tspan x="20" y="1912"><tspan fill="#767676">------------------------------------------------------------</tspan></tspan>
+<tspan x="20" y="1930">  <tspan fill="#16c60c">SAFE   </tspan>  23.2 GB    regenerated automatically, no data loss</tspan>
+<tspan x="20" y="1948">  <tspan fill="#c19c00">CAUTION</tspan>  8.6 GB     regenerable, read the note first</tspan>
+<tspan x="20" y="1966">  <tspan fill="#e74856">REVIEW </tspan>  45.0 GB    your data, check by hand (never cleaned by storage-doctor)</tspan>
+<tspan x="20" y="2002">  Run again with -Clean to clean SAFE and CAUTION items (asks for each one),</tspan>
+<tspan x="20" y="2020">  or with -DryRun to preview without changing anything.</tspan>
 </text></svg>
