@@ -17,6 +17,8 @@ jobs:
         run: /bin/bash macos/medic.sh --no-color
       - name: Printed delete commands are safe
         run: tests/macos-delete-commands.sh
+      - name: Commands, JSON and exit codes
+        run: tests/macos-commands.sh
       - name: Install, run from any folder, uninstall
         run: tests/macos-install.sh
       - name: README screenshots match the current output
@@ -31,14 +33,14 @@ jobs:
       - name: Lint
         shell: pwsh
         run: |
-          foreach ($file in 'windows/medic.ps1', 'install.ps1') {
-            if ((Get-Content -Raw $file) -match '[^\x00-\x7F]') {
+          foreach ($file in Get-ChildItem -Recurse -Include *.ps1, *.psd1 -Path windows, tests, docs, install.ps1) {
+            if ((Get-Content -Raw $file.FullName) -match '[^\x00-\x7F]') {
               throw "$file must be ASCII only: Windows PowerShell 5.1 misreads other characters"
             }
           }
           Install-Module PSScriptAnalyzer -Force -Scope CurrentUser
-          $results = 'windows/medic.ps1', 'install.ps1', 'tests/windows-clear-folder.ps1', 'tests/windows-install.ps1', 'docs/screenshot-data-windows.ps1' |
-            ForEach-Object { Invoke-ScriptAnalyzer -Path $_ -Settings windows/PSScriptAnalyzerSettings.psd1 }
+          $results = Get-ChildItem -Recurse -Include *.ps1 -Path windows, tests, docs, install.ps1 |
+            ForEach-Object { Invoke-ScriptAnalyzer -Path $_.FullName -Settings windows/PSScriptAnalyzerSettings.psd1 }
           $results | Format-Table -AutoSize
           if ($results) { exit 1 }
       - name: Read-only scan with Windows PowerShell 5.1
@@ -53,6 +55,12 @@ jobs:
       - name: Printed Clear-Folder helper is safe (PowerShell 7)
         shell: pwsh
         run: ./tests/windows-clear-folder.ps1
+      - name: Commands, JSON and exit codes (Windows PowerShell 5.1)
+        shell: powershell
+        run: .\tests\windows-commands.ps1
+      - name: Commands, JSON and exit codes (PowerShell 7)
+        shell: pwsh
+        run: ./tests/windows-commands.ps1
       - name: Build the release files
         shell: bash
         run: tools/dist.sh dist

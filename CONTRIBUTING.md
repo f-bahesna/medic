@@ -11,6 +11,8 @@
 | `tests/` | Tests run by CI |
 | `docs/make-screenshots.py` | Draws the README screenshots from the real output, with sample data |
 
+Run `bash install.sh --link` to use your checkout as the `medic` command.
+
 ## Adding a location
 
 1. Add it to `collect_items` (Mac) or `Initialize-Item` (Windows).
@@ -18,7 +20,14 @@
    If the tool has its own cleanup command, add a case to `clean_item` (Mac) or `Invoke-ItemClean` (Windows) instead.
 3. Keep the printed delete commands in sync: `item_commands` (Mac), `Get-ItemCommand` (Windows).
 
-Run `bash install.sh --link` to use your checkout as the `medic` command.
+## Adding a purge folder kind
+
+Add the folder name to `PURGE_NAMES` (Mac) or `$PurgeNames` (Windows), and the file that proves what it is to `purge_kind` (Mac) or `Get-PurgeKind` (Windows).
+
+## Keeping both versions in sync
+
+Commands, options, exit codes and the JSON shape are the same on both systems.
+Change them in both scripts and in both `tests/*-commands.*` tests.
 
 ## Before a pull request
 
