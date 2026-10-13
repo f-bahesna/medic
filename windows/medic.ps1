@@ -1,6 +1,6 @@
 <#
 .SYNOPSIS
-    storage-doctor for Windows - see what is filling up your PC and what is safe to clean.
+    medic for Windows - see what is filling up your PC and what is safe to clean.
 
 .DESCRIPTION
     Read-only by default: nothing is deleted unless you pass -Clean and confirm
@@ -8,7 +8,7 @@
     items (your personal data) are reported, never touched.
 
     Runs on the Windows PowerShell 5.1 that ships with Windows 10 and 11, and on
-    PowerShell 7. No dependencies. The macOS version lives in macos/storage-doctor.sh.
+    PowerShell 7. No dependencies. The macOS version lives in macos/medic.sh.
 
     Safety levels:
       SAFE      Regenerated automatically. No data loss.
@@ -17,15 +17,19 @@
       REVIEW    May contain personal data. Reported only, never deleted.
 
 .EXAMPLE
-    powershell -ExecutionPolicy Bypass -File .\storage-doctor.ps1
-    Full read-only report.
+    medic
+    Full read-only report, once medic is installed (see the README).
 
 .EXAMPLE
-    powershell -ExecutionPolicy Bypass -File .\storage-doctor.ps1 -DryRun
+    powershell -ExecutionPolicy Bypass -File .\medic.ps1
+    Full read-only report, running the downloaded script directly.
+
+.EXAMPLE
+    powershell -ExecutionPolicy Bypass -File .\medic.ps1 -DryRun
     Walk through the cleanup and show what would happen, change nothing.
 
 .LINK
-    https://github.com/f-bahesna/storage-doctor
+    https://github.com/f-bahesna/medic
 #>
 [CmdletBinding()]
 param(
@@ -48,7 +52,7 @@ param(
 
 Set-StrictMode -Version 2.0
 
-$ScriptVersion = '0.2.0'
+$ScriptVersion = '0.3.0'
 $DoClean = [bool]($Clean -or $DryRun)
 $DryRunMode = [bool]$DryRun
 $SkipSlowScans = [bool]$Quick
@@ -362,7 +366,7 @@ function Initialize-Item {
     )
     $adminDumps = @("$W\Minidump", "$env:ProgramData\Microsoft\Windows\WER\ReportArchive", "$env:ProgramData\Microsoft\Windows\WER\ReportQueue")
 
-    # The only folders whose contents storage-doctor will ever delete. Exact matches only.
+    # The only folders whose contents medic will ever delete. Exact matches only.
     $cleanable = @($browserCaches + $appCaches + $systemCaches + $adminDumps + @(
             "$W\Temp", "$W\SoftwareDistribution\Download"
             "$L\pip\Cache", "$L\Yarn\Cache", "$U\.gradle\caches", "$U\.m2\repository"
@@ -426,12 +430,12 @@ function Measure-Item {
     foreach ($item in $Items) {
         $n++
         if ($item.Bytes -ge 0) { continue }
-        Write-Progress -Activity 'storage-doctor' -Status "Scanning $($item.Label)" -PercentComplete ($n * 100 / $Items.Count)
+        Write-Progress -Activity 'medic' -Status "Scanning $($item.Label)" -PercentComplete ($n * 100 / $Items.Count)
         $total = [long]0
         foreach ($p in $item.Paths) { $total += Get-PathSize $p }
         $item.Bytes = $total
     }
-    Write-Progress -Activity 'storage-doctor' -Completed
+    Write-Progress -Activity 'medic' -Completed
 }
 
 function Get-VisibleItem { $Items | Where-Object { $_.Bytes -ge 1MB } | Sort-Object Bytes -Descending }
@@ -548,12 +552,12 @@ function Get-CacheHint([string]$Name) {
 
 function Show-Breakdown([string]$Dir, [int]$Count) {
     if (-not $Dir -or -not (Test-Path -LiteralPath $Dir)) { return }
-    Write-Progress -Activity 'storage-doctor' -Status "Scanning $(Format-Path $Dir)"
+    Write-Progress -Activity 'medic' -Status "Scanning $(Format-Path $Dir)"
     $rows = Get-ChildItem -LiteralPath $Dir -Directory -Force -ErrorAction SilentlyContinue |
         Where-Object { -not ([int]$_.Attributes -band $ReparsePoint) } |
         ForEach-Object { [pscustomobject]@{ Name = $_.Name; Bytes = Get-PathSize $_.FullName } } |
         Where-Object { $_.Bytes -ge 1MB } | Sort-Object Bytes -Descending | Select-Object -First $Count
-    Write-Progress -Activity 'storage-doctor' -Completed
+    Write-Progress -Activity 'medic' -Completed
     Write-Host ''
     Write-Text "  $(Format-Path $Dir)"
     foreach ($r in $rows) {
@@ -568,7 +572,7 @@ function Show-AppDataBreakdown {
     Show-Breakdown $env:LOCALAPPDATA 8
     Show-Breakdown $env:APPDATA 8
     Write-Note 'AppData holds app data (settings, databases). Folders of apps you already'
-    Write-Note 'uninstalled can be removed, but check first. storage-doctor never cleans these folders.'
+    Write-Note 'uninstalled can be removed, but check first. medic never cleans these folders.'
 }
 
 function Show-DevProject {
@@ -579,11 +583,11 @@ function Show-DevProject {
             ForEach-Object { [IO.Path]::GetFullPath($_).TrimEnd('\') } | Sort-Object -Unique)
     if ($roots.Count -eq 0) { return }
 
-    Write-Progress -Activity 'storage-doctor' -Status 'Scanning node_modules and Python virtualenvs'
+    Write-Progress -Activity 'medic' -Status 'Scanning node_modules and Python virtualenvs'
     $found = @(Find-DependencyFolder $roots | Sort-Object -Unique | ForEach-Object {
             [pscustomobject]@{ Path = $_; Bytes = Get-PathSize $_ }
         } | Sort-Object Bytes -Descending)
-    Write-Progress -Activity 'storage-doctor' -Completed
+    Write-Progress -Activity 'medic' -Completed
     if ($found.Count -eq 0) { return }
 
     Write-Section 'Dev project dependencies'
@@ -598,9 +602,9 @@ function Show-DevProject {
 }
 
 function Show-LargeFile {
-    Write-Progress -Activity 'storage-doctor' -Status "Scanning for files larger than $LargeMB MB"
+    Write-Progress -Activity 'medic' -Status "Scanning for files larger than $LargeMB MB"
     $files = @(Find-LargeFile $env:USERPROFILE $LargeBytes | Sort-Object Bytes -Descending | Select-Object -First 15)
-    Write-Progress -Activity 'storage-doctor' -Completed
+    Write-Progress -Activity 'medic' -Completed
     if ($files.Count -eq 0) { return }
 
     Write-Section "Large files (> $LargeMB MB)"
@@ -659,7 +663,7 @@ function Show-Summary {
     $lines = @(
         @('SAFE', 'regenerated automatically, no data loss'),
         @('CAUTION', 'regenerable, read the note first'),
-        @('REVIEW', 'your data, check by hand (never cleaned by storage-doctor)')
+        @('REVIEW', 'your data, check by hand (never cleaned by medic)')
     )
     foreach ($l in $lines) {
         Write-Host '  ' -NoNewline
@@ -742,14 +746,14 @@ function Invoke-Tool([string]$File, [string[]]$Arguments) {
 function Clear-RecycleBinSafe {
     if ($DryRunMode) { Write-Note 'would empty the Recycle Bin'; return }
     # Clear-RecycleBin is missing in PowerShell 7, the shell API works everywhere.
-    if (-not ('StorageDoctor.Shell' -as [type])) {
-        Add-Type -Namespace StorageDoctor -Name Shell -MemberDefinition @'
+    if (-not ('Medic.Shell' -as [type])) {
+        Add-Type -Namespace Medic -Name Shell -MemberDefinition @'
 [DllImport("shell32.dll", CharSet = CharSet.Unicode)]
 public static extern int SHEmptyRecycleBin(IntPtr hwnd, string pszRootPath, uint dwFlags);
 '@
     }
     # 7 = no confirmation, no progress UI, no sound
-    [void][StorageDoctor.Shell]::SHEmptyRecycleBin([IntPtr]::Zero, $null, 7)
+    [void][Medic.Shell]::SHEmptyRecycleBin([IntPtr]::Zero, $null, 7)
 }
 
 function Move-InstallerToRecycleBin {
@@ -844,14 +848,14 @@ function Invoke-Clean {
 }
 
 # ---------------------------------------------------------------------------
-# Main. Dot-sourcing the script (". .\storage-doctor.ps1") only loads the
+# Main. Dot-sourcing the script (". .\medic.ps1") only loads the
 # functions, which is handy for tests and for drawing the README screenshots.
 # ---------------------------------------------------------------------------
 
-function Invoke-StorageDoctor {
+function Invoke-Medic {
     $script:IsAdmin = Test-Admin
     $os = Get-CimInstance Win32_OperatingSystem
-    Write-Text "storage-doctor $ScriptVersion" '' -NoNewline
+    Write-Text "medic $ScriptVersion" '' -NoNewline
     Write-Text " - $env:COMPUTERNAME, $($os.Caption) $($os.Version)" DarkGray
     Write-Note 'Read-only scan. Nothing is deleted unless you run -Clean and confirm.'
     if ($IsAdmin) { Write-Note 'Running as administrator: system caches are included.' }
@@ -874,10 +878,10 @@ function Invoke-StorageDoctor {
 
 if ($MyInvocation.InvocationName -eq '.') { return }
 
-if ($Version) { "storage-doctor $ScriptVersion (Windows)"; return }
+if ($Version) { "medic $ScriptVersion (Windows)"; return }
 if ($PSVersionTable.PSVersion.Major -ge 6 -and -not $IsWindows) {
-    Write-Error 'This is the Windows version. On macOS, run macos/storage-doctor.sh with bash instead.'
+    Write-Error 'This is the Windows version. On macOS, run macos/medic.sh with bash instead.'
     exit 1
 }
 
-Invoke-StorageDoctor
+Invoke-Medic

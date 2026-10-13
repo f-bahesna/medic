@@ -1,8 +1,8 @@
-# Runs the Clear-Folder helper that storage-doctor prints, and checks that it empties
+# Runs the Clear-Folder helper that medic prints, and checks that it empties
 # a folder (read-only files included) without touching what junctions inside it point to.
 $ErrorActionPreference = 'Stop'
 
-. (Join-Path $PSScriptRoot '..\windows\storage-doctor.ps1')   # dot-sourcing only loads definitions
+. (Join-Path $PSScriptRoot '..\windows\medic.ps1')   # dot-sourcing only loads definitions
 . ([scriptblock]::Create($ClearFolderHelper))   # defines Clear-Folder exactly as users paste it
 
 $root = Join-Path ([IO.Path]::GetTempPath()) ([IO.Path]::GetRandomFileName())

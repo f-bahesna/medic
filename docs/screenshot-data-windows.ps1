@@ -1,6 +1,6 @@
 # Runs the real Windows report with made-up data, for the README screenshot.
 # Only the functions and cmdlets that read the system are replaced here; everything
-# that formats and prints is storage-doctor's own code. Used by make-screenshots.py.
+# that formats and prints is medic's own code. Used by make-screenshots.py.
 
 [Diagnostics.CodeAnalysis.SuppressMessageAttribute('PSAvoidOverwritingBuiltInCmdlets', '', Justification = 'Replacing the cmdlets that read the system is the point of this file.')]
 [Diagnostics.CodeAnalysis.SuppressMessageAttribute('PSReviewUnusedParameter', '', Justification = 'The fakes accept the same parameters as the cmdlets they replace.')]
@@ -17,7 +17,7 @@ $env:windir = 'C:\WINDOWS'
 $env:ProgramData = 'C:\ProgramData'
 $env:SystemDrive = 'C:'
 
-. ([IO.Path]::Combine($PSScriptRoot, '..', 'windows', 'storage-doctor.ps1')) -Quick
+. ([IO.Path]::Combine($PSScriptRoot, '..', 'windows', 'medic.ps1')) -Quick
 
 $L = $env:LOCALAPPDATA
 $Downloads = 'C:\Users\alex\Downloads'
@@ -127,4 +127,4 @@ function Get-Process {
     return $Processes
 }
 
-Invoke-StorageDoctor
+Invoke-Medic

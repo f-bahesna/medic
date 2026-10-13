@@ -1,20 +1,23 @@
-# storage-doctor
+# medic
+
+> Formerly **storage-doctor**.
+> Old links to this repository redirect here.
 
 See what is filling up your computer, how big it is, and what is actually safe to delete.
 Also shows how your memory (RAM) is doing and which apps use the most.
 
 It is **read-only by default**: nothing is deleted unless you ask for a cleanup and confirm every item.
-No installation and no dependencies, just one script.
+No dependencies: one script, installed as the `medic` command so you can run it from any folder.
 
 ## Which one do I need?
 
 There are two versions.
 Pick the one for your computer, they do not work on the other system.
 
-| Your computer | Use this file | Run it with |
-| --- | --- | --- |
-| **Mac** (macOS 11 or newer) | [`macos/storage-doctor.sh`](macos/storage-doctor.sh) | the **Terminal** app |
-| **Windows** 10 or 11 | [`windows/storage-doctor.ps1`](windows/storage-doctor.ps1) | **PowerShell** or **Windows Terminal** |
+| Your computer | Script | Installer | Run it in |
+| --- | --- | --- | --- |
+| **Mac** (macOS 11 or newer) | [`macos/medic.sh`](macos/medic.sh) | [`install.sh`](install.sh) | the **Terminal** app |
+| **Windows** 10 or 11 | [`windows/medic.ps1`](windows/medic.ps1) | [`install.ps1`](install.ps1) | **PowerShell** or **Windows Terminal** |
 
 Not sure what you have?
 
@@ -23,38 +26,60 @@ Not sure what you have?
 
 > [!WARNING]
 > Do not run the Mac script on Windows (not even in Git Bash or WSL), and do not run the Windows script on a Mac.
-> Each script checks this and stops with a message telling you which file to use instead.
+> Each script and installer checks this and stops with a message telling you which one to use instead.
 
 ---
 
 ## Mac
 
-![Example output of storage-doctor on a Mac](docs/screenshot-macos.svg)
+![Example output of medic on a Mac](docs/screenshot-macos.svg)
 
 <sub>Example output with sample data.</sub>
 
-### 1. Download and run
+### 1. Install
 
 Open **Terminal** (press `Cmd + Space`, type `Terminal`, press Enter) and paste:
 
 ```sh
-curl -fsSLO https://raw.githubusercontent.com/f-bahesna/storage-doctor/main/macos/storage-doctor.sh
-bash storage-doctor.sh
+curl -fsSL https://github.com/f-bahesna/medic/releases/latest/download/install.sh | bash
 ```
 
-Like any script from the internet, you can read it first with `less storage-doctor.sh` (press `q` to quit).
+Then open a new Terminal window and run `medic`, from any folder.
+
+What the installer does:
+
+- Downloads `medic.sh` from the latest release and checks it against the release's `SHA256SUMS`, it refuses to install a file that does not match.
+- Puts it in `~/.local/bin/medic`, for your user only, no `sudo`.
+- If `~/.local/bin` is not on your PATH yet, adds one line to `~/.zshrc` (or `~/.bash_profile` for bash).
+  Pass `--no-modify-path` to add it yourself instead.
+
+Like any script from the internet, you can read the installer first: download it with `curl -fsSLO <the same URL>` and open it with `less install.sh` (press `q` to quit).
+
+| Command | What it does |
+| --- | --- |
+| `curl -fsSL .../install.sh \| bash` | Install, or update to the latest release |
+| `curl -fsSL .../install.sh \| bash -s -- --version v0.3.0` | Install a specific release |
+| `curl -fsSL .../install.sh \| bash -s -- --uninstall` | Remove medic |
+
+Prefer not to install anything?
+Download the script and run it in place, the options below work the same:
+
+```sh
+curl -fsSLO https://github.com/f-bahesna/medic/releases/latest/download/medic.sh
+bash medic.sh
+```
 
 ### 2. Options
 
 | Command | What it does |
 | --- | --- |
-| `bash storage-doctor.sh` | Full report (up to a minute) |
-| `bash storage-doctor.sh --quick` | Skip the slow scans (a few seconds) |
-| `bash storage-doctor.sh --dry-run` | Walk through the cleanup and show what would happen, change nothing |
-| `bash storage-doctor.sh --clean` | Clean SAFE and CAUTION items, asking `[y/N]` for each one |
-| `bash storage-doctor.sh --large 2000` | Only list files bigger than 2000 MB |
-| `bash storage-doctor.sh --dev-dir ~/work` | Also scan `~/work` for `node_modules` and Python venvs |
-| `bash storage-doctor.sh --help` | Show all options |
+| `medic` | Full report (up to a minute) |
+| `medic --quick` | Skip the slow scans (a few seconds) |
+| `medic --dry-run` | Walk through the cleanup and show what would happen, change nothing |
+| `medic --clean` | Clean SAFE and CAUTION items, asking `[y/N]` for each one |
+| `medic --large 2000` | Only list files bigger than 2000 MB |
+| `medic --dev-dir ~/work` | Also scan `~/work` for `node_modules` and Python venvs |
+| `medic --help` | Show all options |
 
 ### 3. Permissions
 
@@ -69,36 +94,56 @@ Do **not** run it with `sudo`, it refuses to, because it only needs your own fil
 
 ## Windows
 
-![Example output of storage-doctor on Windows](docs/screenshot-windows.svg)
+![Example output of medic on Windows](docs/screenshot-windows.svg)
 
 <sub>Example output with sample data.</sub>
 
-### 1. Download and run
+### 1. Install
 
 Open **PowerShell** (press the Windows key, type `PowerShell`, press Enter) and paste:
 
 ```powershell
-Invoke-WebRequest https://raw.githubusercontent.com/f-bahesna/storage-doctor/main/windows/storage-doctor.ps1 -OutFile storage-doctor.ps1
-powershell -ExecutionPolicy Bypass -File .\storage-doctor.ps1
+irm https://github.com/f-bahesna/medic/releases/latest/download/install.ps1 | iex
 ```
 
-Like any script from the internet, you can read it first with `notepad storage-doctor.ps1`.
+Then open a new PowerShell window and run `medic`, from any folder.
 
-Why `-ExecutionPolicy Bypass`?
+What the installer does:
+
+- Downloads `medic.ps1` from the latest release and checks it against the release's `SHA256SUMS`, it refuses to install a file that does not match.
+- Puts it in `%LOCALAPPDATA%\Programs\medic`, for your user only, no administrator rights needed.
+- Adds a small `medic.cmd` launcher in its `bin` folder to your user PATH.
+
 Windows blocks downloaded scripts by default.
-This flag allows **only this one run**, it does not change any setting on your PC.
+The launcher runs medic with `-ExecutionPolicy Bypass`, which allows **only that one run**, it does not change any setting on your PC.
+
+Like any script from the internet, you can read the installer first: save it with `irm <the same URL> -OutFile install.ps1` and open it with `notepad install.ps1`.
+
+| Command | What it does |
+| --- | --- |
+| `irm .../install.ps1 \| iex` | Install, or update to the latest release |
+| `& ([scriptblock]::Create((irm .../install.ps1))) -Version v0.3.0` | Install a specific release |
+| `& ([scriptblock]::Create((irm .../install.ps1))) -Uninstall` | Remove medic and its PATH entry |
+
+Prefer not to install anything?
+Download the script and run it in place, with the same options as below:
+
+```powershell
+irm https://github.com/f-bahesna/medic/releases/latest/download/medic.ps1 -OutFile medic.ps1
+powershell -ExecutionPolicy Bypass -File .\medic.ps1
+```
 
 ### 2. Options
 
 | Command | What it does |
 | --- | --- |
-| `powershell -ExecutionPolicy Bypass -File .\storage-doctor.ps1` | Full report (can take a few minutes) |
-| `... -File .\storage-doctor.ps1 -Quick` | Skip the slow scans |
-| `... -File .\storage-doctor.ps1 -DryRun` | Walk through the cleanup and show what would happen, change nothing |
-| `... -File .\storage-doctor.ps1 -Clean` | Clean SAFE and CAUTION items, asking `[y/N]` for each one |
-| `... -File .\storage-doctor.ps1 -LargeMB 2000` | Only list files bigger than 2000 MB |
-| `... -File .\storage-doctor.ps1 -DevDir C:\work` | Also scan `C:\work` for `node_modules` and Python venvs |
-| `Get-Help .\storage-doctor.ps1 -Detailed` | Show all options |
+| `medic` | Full report (can take a few minutes) |
+| `medic -Quick` | Skip the slow scans |
+| `medic -DryRun` | Walk through the cleanup and show what would happen, change nothing |
+| `medic -Clean` | Clean SAFE and CAUTION items, asking `[y/N]` for each one |
+| `medic -LargeMB 2000` | Only list files bigger than 2000 MB |
+| `medic -DevDir C:\work` | Also scan `C:\work` for `node_modules` and Python venvs |
+| `medic -?` | Show all options |
 
 Note that Windows options start with a single dash and a capital letter (`-Clean`), Mac options with two dashes (`--clean`).
 
@@ -106,7 +151,7 @@ Note that Windows options start with a single dash and a capital letter (`-Clean
 
 As a normal user the script covers your own files.
 To also measure and clean system caches (Windows Update downloads, system temp files, crash dumps, `Windows.old`), run it as administrator.
-Right-click the Start button, choose **Terminal (Admin)** or **Windows PowerShell (Admin)**, go to the folder with the script (for example `cd $HOME\Downloads`) and run the same command.
+Right-click the Start button, choose **Terminal (Admin)** or **Windows PowerShell (Admin)** and run `medic` there.
 Items that need administrator rights are marked `[admin]` in the report.
 
 ---
@@ -155,13 +200,23 @@ If the tool has its own cleanup command, add a case to `clean_item` (Mac) or `In
 Keep the printed delete commands in sync: `item_commands` (Mac) and `Get-ItemCommand` (Windows) mirror the cleanup functions.
 The README screenshots are drawn from the real output of both scripts with made-up data: after changing the report, run `python3 docs/make-screenshots.py` on a Mac with PowerShell 7 installed (CI checks they are up to date).
 
+To try your changes as the `medic` command on a Mac, run `bash install.sh --link` in your checkout: it links `~/.local/bin/medic` to `macos/medic.sh`.
+
 Before opening a pull request:
 
-- Mac: `shellcheck macos/storage-doctor.sh`, and test with the built-in `/bin/bash` (version 3.2).
-- Windows: `Invoke-ScriptAnalyzer windows/storage-doctor.ps1 -Settings windows/PSScriptAnalyzerSettings.psd1`, and test with the built-in Windows PowerShell 5.1.
-  Keep the file ASCII only, Windows PowerShell 5.1 misreads other characters.
+- Mac: `shellcheck macos/medic.sh install.sh tools/dist.sh tests/*.sh`, test with the built-in `/bin/bash` (version 3.2), and run `tests/macos-install.sh`.
+- Windows: `Invoke-ScriptAnalyzer` on `windows/medic.ps1` and `install.ps1` with `-Settings windows/PSScriptAnalyzerSettings.psd1`, and test with the built-in Windows PowerShell 5.1.
+  Keep both files ASCII only, Windows PowerShell 5.1 misreads other characters.
 
 CI runs all of this on real macOS and Windows machines for every push.
+
+### Releasing
+
+1. Set the same version in `VERSION` (`macos/medic.sh`) and `$ScriptVersion` (`windows/medic.ps1`), and regenerate the screenshots.
+2. Push a tag for it, for example `git tag v0.3.0 && git push origin v0.3.0`.
+
+The release workflow checks that the tag matches both scripts, then publishes `medic.sh`, `medic.ps1`, both installers and `SHA256SUMS`, built by `tools/dist.sh`.
+The installers always download from the latest release, so users get the new version by running the install command again.
 
 ## License
 

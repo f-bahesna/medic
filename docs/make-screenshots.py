@@ -1,6 +1,6 @@
 """Draw the README screenshots from the real output of both scripts, with made-up data.
 
-macOS: storage-doctor.sh runs unmodified. The system commands it reads from (df, du,
+macOS: medic.sh runs unmodified, installed as "medic" on PATH. The system commands it reads from (df, du,
 vm_stat, sysctl, ps, ...) are replaced by fakes earlier on PATH, and HOME points at a
 throwaway folder.
 Windows: screenshot-data-windows.ps1 runs the real script functions in PowerShell 7
@@ -114,7 +114,7 @@ esac
 
 
 def mac_output():
-    tmp = tempfile.mkdtemp(prefix="storage-doctor-shot.")
+    tmp = tempfile.mkdtemp(prefix="medic-shot.")
     try:
         home, bin_dir = os.path.join(tmp, "home"), os.path.join(tmp, "bin")
         os.makedirs(bin_dir)
@@ -123,6 +123,7 @@ def mac_output():
             with open(path, "w") as f:
                 f.write(body)
             os.chmod(path, os.stat(path).st_mode | stat.S_IEXEC)
+        os.symlink(os.path.join(ROOT, "macos", "medic.sh"), os.path.join(bin_dir, "medic"))  # like install.sh --link
 
         sizes = []
         for rel, kb in MAC_SIZES.items():
@@ -145,8 +146,7 @@ def mac_output():
 
         env = {"HOME": home, "PATH": f"{bin_dir}:/usr/bin:/bin:/usr/sbin:/sbin", "TERM": "xterm-256color",
                "TMPDIR": tmp, "FAKE_SIZES": os.path.join(tmp, "sizes"), "FAKE_PS": os.path.join(tmp, "ps")}
-        return run_in_pty(["/bin/bash", "-c", "exec bash storage-doctor.sh --quick 2>/dev/null"],
-                          cwd=os.path.join(ROOT, "macos"), env=env)
+        return run_in_pty(["/bin/bash", "-c", "exec medic --quick 2>/dev/null"], cwd=home, env=env)
     finally:
         shutil.rmtree(tmp)
 
@@ -274,7 +274,7 @@ def render(name, prompt, lines, theme):
 def mac_chrome(width):
     return ['<circle cx="20" cy="17" r="6" fill="#ff5f57"/>', '<circle cx="40" cy="17" r="6" fill="#febc2e"/>',
             '<circle cx="60" cy="17" r="6" fill="#28c840"/>',
-            f'<text x="{width / 2}" y="22" text-anchor="middle" font-family="-apple-system, BlinkMacSystemFont, \'Segoe UI\', sans-serif" font-size="13" fill="#9da1a8">Terminal - storage-doctor.sh</text>']
+            f'<text x="{width / 2}" y="22" text-anchor="middle" font-family="-apple-system, BlinkMacSystemFont, \'Segoe UI\', sans-serif" font-size="13" fill="#9da1a8">Terminal - medic</text>']
 
 
 def win_chrome(width):
@@ -292,7 +292,7 @@ MAC_THEME = {  # One Dark-like colors for macOS Terminal
                 "prompt": "#98c379",
                 "ansi": {31: "#e06c75", 32: "#98c379", 33: "#e5c07b", 36: "#56b6c2", 90: "#7f848e"}},
     "radius": 10, "chrome": mac_chrome, "prompt_prefix": "~ $ ",
-    "aria": "Example storage-doctor output on macOS, with sample data",
+    "aria": "Example medic output on macOS, with sample data",
 }
 WIN_THEME = {  # Windows Terminal "Campbell" colors
     "palette": {"bg": "#0c0c0c", "bar": "#202020", "fg": "#cccccc", "bold": "#cccccc", "dim": "#767676",
@@ -300,11 +300,10 @@ WIN_THEME = {  # Windows Terminal "Campbell" colors
                 "ansi": {31: "#c50f1f", 32: "#13a10e", 33: "#c19c00", 36: "#3a96dd", 37: "#cccccc",
                          90: "#767676", 91: "#e74856", 92: "#16c60c", 93: "#f9f1a5", 96: "#61d6d6", 97: "#f2f2f2"}},
     "radius": 8, "chrome": win_chrome, "prompt_prefix": "PS C:\\Users\\alex> ",
-    "aria": "Example storage-doctor output on Windows, with sample data",
+    "aria": "Example medic output on Windows, with sample data",
 }
 
 
 if __name__ == "__main__":
-    render("screenshot-macos.svg", "bash storage-doctor.sh --quick", parse_ansi(mac_output()), MAC_THEME)
-    render("screenshot-windows.svg", "powershell -ExecutionPolicy Bypass -File .\\storage-doctor.ps1 -Quick",
-           parse_ansi(windows_output()), WIN_THEME)
+    render("screenshot-macos.svg", "medic --quick", parse_ansi(mac_output()), MAC_THEME)
+    render("screenshot-windows.svg", "medic -Quick", parse_ansi(windows_output()), WIN_THEME)

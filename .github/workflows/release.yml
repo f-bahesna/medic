@@ -1,0 +1,27 @@
+name: Release
+
+# Push a tag like v0.3.0 to publish a release. The installers download
+# medic.sh / medic.ps1 and check them against the SHA256SUMS published here.
+on:
+  push:
+    tags: ['v*']
+
+permissions:
+  contents: write
+
+jobs:
+  release:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v5
+      - name: Tag matches the version in both scripts
+        run: |
+          v=${GITHUB_REF_NAME#v}
+          grep -q "^VERSION=\"$v\"" macos/medic.sh || { echo "::error::macos/medic.sh is not version $v"; exit 1; }
+          grep -q "^\$ScriptVersion = '$v'" windows/medic.ps1 || { echo "::error::windows/medic.ps1 is not version $v"; exit 1; }
+      - name: Build the release files
+        run: tools/dist.sh dist
+      - name: Publish
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: gh release create "$GITHUB_REF_NAME" dist/* --title "medic $GITHUB_REF_NAME" --generate-notes
