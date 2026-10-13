@@ -69,14 +69,14 @@ func row(p *ui.Printer, label, value, hint string) {
 func RenderHeader(p *ui.Printer, r *Report, dryRun bool) {
 	p.Printf("%s %s\n", p.B("medic "+r.Version), p.G("- "+r.Host.Name+", "+r.Host.OS))
 	switch r.Command {
-	case "clean", "purge":
+	case "clean", "purge", "uninstall":
 		if dryRun {
 			p.Note("Dry run: shows what would happen, changes nothing.")
 		}
 	default:
-		p.Note("Read-only. Nothing is deleted unless you run 'medic clean' or 'medic purge' and confirm.")
+		p.Note("Read-only. Nothing is deleted unless you run clean, purge or uninstall and confirm.")
 	}
-	if r.Command == "memory" || r.Command == "purge" {
+	if r.Command == "memory" || r.Command == "purge" || r.Command == "apps" {
 		return
 	}
 	if r.NoDiskAccess {

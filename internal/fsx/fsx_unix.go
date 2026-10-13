@@ -3,10 +3,15 @@
 package fsx
 
 import (
+	"context"
 	"fmt"
 	"io/fs"
 	"os"
+	"os/exec"
+	"path/filepath"
+	"strings"
 	"syscall"
+	"time"
 )
 
 type fileID struct{ dev, ino uint64 }
@@ -50,3 +55,42 @@ func ID(path string, info fs.FileInfo) string {
 // linkEntry reports whether a directory entry is a link. On macOS the listing
 // already says so: a symlink is never reported as a folder.
 func linkEntry(os.DirEntry) bool { return false }
+
+// Trash moves path to the user's Trash, so it can be put back. It moves it
+// itself, which needs no permission prompt. Only when that is not allowed,
+// like an App Store app owned by root, Finder does it and asks for a password.
+func Trash(path string) error {
+	if _, err := os.Lstat(path); err != nil {
+		return nil
+	}
+	home, err := os.UserHomeDir()
+	if err != nil {
+		return err
+	}
+	trash := filepath.Join(home, ".Trash")
+	_ = os.MkdirAll(trash, 0o700)
+	if err = os.Rename(path, freeName(trash, filepath.Base(path))); err == nil {
+		return nil
+	}
+	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Minute)
+	defer cancel()
+	out, ferr := exec.CommandContext(ctx, "osascript", "-e", "on run argv", "-e", "set f to POSIX file (item 1 of argv) as alias",
+		"-e", `tell application "Finder" to delete f`, "-e", "end run", path).CombinedOutput()
+	if ferr != nil {
+		return fmt.Errorf("%v (%s); drag it to the Trash in Finder instead", err, strings.TrimSpace(string(out)))
+	}
+	return nil
+}
+
+// freeName is dir/name, or dir/"name <time>" when the Trash already has one.
+func freeName(dir, name string) string {
+	dest := filepath.Join(dir, name)
+	if _, err := os.Lstat(dest); err != nil {
+		return dest
+	}
+	ext := filepath.Ext(name)
+	if strings.HasSuffix(name, ".app") || ext == name {
+		ext = ""
+	}
+	return filepath.Join(dir, strings.TrimSuffix(name, ext)+" "+time.Now().Format("15.04.05.000")+ext)
+}

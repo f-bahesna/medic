@@ -7,7 +7,6 @@ import (
 	"regexp"
 	"strings"
 	"time"
-	"unsafe"
 
 	"github.com/f-bahesna/medic/internal/fsx"
 	"github.com/f-bahesna/medic/internal/ui"
@@ -163,8 +162,8 @@ func Clean(it *Item, home string, dry bool, p *ui.Printer) bool {
 				p.Note("would move to Recycle Bin: %s", ui.Tilde(f, home))
 				continue
 			}
-			if !recycle(f) {
-				p.Warn("could not move %s to the Recycle Bin", ui.Tilde(f, home))
+			if err := fsx.Trash(f); err != nil {
+				p.Warn("could not move %s to the Recycle Bin: %v", ui.Tilde(f, home), err)
 			}
 		}
 		return true
@@ -222,7 +221,6 @@ func removeAllowedFile(path string, allowed []string, dry bool, p *ui.Printer) b
 var (
 	shell32               = windows.NewLazySystemDLL("shell32.dll")
 	procSHEmptyRecycleBin = shell32.NewProc("SHEmptyRecycleBinW")
-	procSHFileOperation   = shell32.NewProc("SHFileOperationW")
 )
 
 func emptyRecycleBin() bool {
@@ -230,36 +228,6 @@ func emptyRecycleBin() bool {
 	// returns an error code too, so the result is not checked.
 	_, _, _ = procSHEmptyRecycleBin.Call(0, 0, 7)
 	return true
-}
-
-type shFileOpStruct struct {
-	Hwnd                 uintptr
-	Func                 uint32
-	From                 *uint16
-	To                   *uint16
-	Flags                uint16
-	AnyOperationsAborted int32
-	NameMappings         uintptr
-	ProgressTitle        *uint16
-}
-
-// recycle moves one file to the Recycle Bin, so it can be restored.
-func recycle(path string) bool {
-	const (
-		foDelete          = 3
-		fofSilent         = 0x4
-		fofNoConfirmation = 0x10
-		fofAllowUndo      = 0x40
-		fofNoErrorUI      = 0x400
-	)
-	from, err := windows.UTF16FromString(path)
-	if err != nil {
-		return false
-	}
-	from = append(from, 0) // the list ends with two NULs
-	op := shFileOpStruct{Func: foDelete, From: &from[0], Flags: fofSilent | fofNoConfirmation | fofAllowUndo | fofNoErrorUI}
-	r, _, _ := procSHFileOperation.Call(uintptr(unsafe.Pointer(&op)))
-	return r == 0 && op.AnyOperationsAborted == 0
 }
 
 // stopServices stops the running ones and returns them, to start again later.

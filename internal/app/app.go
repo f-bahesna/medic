@@ -111,6 +111,10 @@ func (c *cmd) run() error {
 		return c.purge()
 	case "check":
 		return c.check()
+	case "apps":
+		return c.listApps()
+	case "uninstall":
+		return c.uninstall()
 	}
 	return nil
 }

@@ -22,6 +22,7 @@ type Options struct {
 	MinFree   string
 	LargeMB   int
 	DevDirs   []string
+	Target    string // uninstall: the app's name
 }
 
 // UsageError is wrong usage: medic exits with 2.
@@ -34,6 +35,7 @@ func usagef(format string, a ...any) error { return UsageError{fmt.Sprintf(forma
 var commands = map[string]string{
 	"report": "report", "disk": "disk", "memory": "memory", "ram": "memory",
 	"clean": "clean", "purge": "purge", "check": "check",
+	"apps": "apps", "uninstall": "uninstall",
 }
 
 var minFreePattern = regexp.MustCompile(`(?i)^(\d+%|\d+(\.\d+)?([KMGT]B?)?)$`)
@@ -47,6 +49,11 @@ func Parse(args []string) (Options, error) {
 	for i := 0; i < len(args); i++ {
 		arg := args[i]
 		if !strings.HasPrefix(arg, "-") || arg == "-" {
+			// Everything after "uninstall" is the app's name: medic uninstall Visual Studio Code.
+			if o.Command == "uninstall" {
+				o.Target = strings.TrimSpace(o.Target + " " + arg)
+				continue
+			}
 			cmd, ok := commands[strings.ToLower(arg)]
 			if !ok {
 				return o, usagef("unknown command: %s", arg)
@@ -141,12 +148,18 @@ func Parse(args []string) (Options, error) {
 func (o Options) validate() error {
 	cleaning := o.Command == "clean" || o.Command == "purge"
 	switch {
-	case o.DryRun && !cleaning:
-		return usagef("--dry-run only works with clean and purge")
+	case o.Command == "uninstall" && o.Target == "":
+		return usagef("uninstall needs the app's name, like: medic uninstall Slack. 'medic apps' lists them.")
+	case o.Command == "uninstall" && o.Yes:
+		return usagef("uninstall always shows what it found and asks first; it has no --yes")
+	case o.DryRun && !cleaning && o.Command != "uninstall":
+		return usagef("--dry-run only works with clean, purge and uninstall")
 	case o.Yes && !cleaning:
 		return usagef("--yes only works with clean and purge")
 	case o.JSON && o.Command == "clean":
 		return usagef("clean has no JSON output; 'medic report --json' lists the items")
+	case o.JSON && o.Command == "uninstall":
+		return usagef("uninstall has no JSON output; 'medic apps --json' lists the apps")
 	case len(o.Only) > 0 && o.Command != "clean":
 		return usagef("--only only works with clean")
 	case !minFreePattern.MatchString(o.MinFree):
@@ -208,13 +221,16 @@ Commands:
   clean            Pick SAFE and CAUTION items to clean
   purge            Pick dependency and build folders of inactive projects to delete
   check            Exit with 1 when the disk is almost full or memory is critical
+  apps             Installed apps, biggest first
+  uninstall NAME   Review an app and what it left behind, then move the picked
+                   parts to the Trash (Recycle Bin on Windows)
 
 Options:
-  --json           Print JSON instead of text (report, disk, memory, purge, check)
+  --json           Print JSON instead of text (report, disk, memory, purge, check, apps)
   --quick          Skip the slow scans: breakdowns, dev folders, large files
   --large MB       Report files bigger than MB megabytes (default: 500)
   --dev-dir DIR    Extra project folder to scan (repeatable)
-  --dry-run        clean, purge: show what would happen, change nothing
+  --dry-run        clean, purge, uninstall: show what would happen, change nothing
   --yes            clean, purge: do not ask, take every listed item
   --only LIST      clean: only these levels (safe, caution) or item ids, comma-separated.
                    With --yes the default is safe.

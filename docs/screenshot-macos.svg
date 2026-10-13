@@ -9,7 +9,7 @@
 <text font-family="ui-monospace, SFMono-Regular, Menlo, Consolas, 'Cascadia Mono', monospace" font-size="13" fill="#d7dae0" xml:space="preserve">
 <tspan x="20" y="58"><tspan fill="#98c379">~ $ </tspan>medic --quick</tspan>
 <tspan x="20" y="94"><tspan fill="#ffffff" font-weight="bold">medic 0.5.0</tspan> <tspan fill="#7f848e">- MacBook Air, macOS 15.5</tspan></tspan>
-<tspan x="20" y="112">  <tspan fill="#7f848e">Read-only. Nothing is deleted unless you run 'medic clean' or 'medic purge' and confirm.</tspan></tspan>
+<tspan x="20" y="112">  <tspan fill="#7f848e">Read-only. Nothing is deleted unless you run clean, purge or uninstall and confirm.</tspan></tspan>
 <tspan x="20" y="148"><tspan fill="#56b6c2" font-weight="bold">Disk</tspan></tspan>
 <tspan x="20" y="166"><tspan fill="#7f848e">------------------------------------------------------------</tspan></tspan>
 <tspan x="20" y="184">  Capacity               494.4 GB</tspan>

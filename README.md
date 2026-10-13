@@ -1,9 +1,9 @@
 # medic
 
-See what fills your disk and memory, and clean what is safe to delete.
+See what fills your disk and memory, clean what is safe to delete, and uninstall apps with everything they left behind.
 For macOS and Windows.
 
-- **Read-only by default.** Nothing is deleted unless you run a cleanup and confirm each item.
+- **Read-only by default.** Nothing is deleted unless you run a cleanup or an uninstall, review what it found, and confirm.
 - **One small program, no dependencies.** For macOS (Apple silicon and Intel) and Windows (x64 and ARM).
 
 Formerly `storage-doctor`.
@@ -60,6 +60,8 @@ The same commands work on Mac and Windows.
 | `medic clean` | Pick SAFE and CAUTION items to clean |
 | `medic purge` | Pick `node_modules`, venvs and build folders of projects untouched for 30 days |
 | `medic check` | Exit 1 when free space is under 10% or memory pressure is critical |
+| `medic apps` | Installed apps, biggest first, with when they were last used |
+| `medic uninstall Slack` | Review an app and everything it left behind, then remove what you pick |
 | `medic --help` | Show all options |
 
 `clean` and `purge` list what they found with numbers.
@@ -67,12 +69,12 @@ Answer `1,3`, `2-5`, `all` or `safe`, then confirm once.
 
 | Option | Works with | What it does |
 | --- | --- | --- |
-| `--dry-run` | clean, purge | Show what would happen, change nothing |
+| `--dry-run` | clean, purge, uninstall | Show what would happen, change nothing |
 | `--yes` | clean, purge | Do not ask. Without `--only`, `clean` takes SAFE items only |
 | `--only safe,npm` | clean | Limit to these levels or item ids |
 | `--older-than 90` | purge | Project age in days, `0` for all projects |
 | `--min-free 20G` | check | Free space needed, as a size or a percentage |
-| `--json` | report, disk, memory, purge, check | Machine-readable output, sizes in bytes |
+| `--json` | report, disk, memory, purge, check, apps | Machine-readable output, sizes in bytes |
 | `--quick` | report, disk | Skip the slow scans |
 | `--dev-dir ~/work` | report, disk, purge | Also scan this project folder |
 | `--large 2000` | report, disk | List files bigger than 2000 MB |
@@ -88,6 +90,21 @@ medic check --min-free 20G || echo "Disk almost full"   # in cron or CI
 medic clean --yes --only safe                             # clean SAFE items without asking
 medic report --json | jq '.summary'                       # use the numbers elsewhere
 ```
+
+### Uninstalling apps
+
+`medic uninstall NAME` never removes anything before you have seen it.
+It lists the app and every file or folder it left behind, with its size and how it was found:
+
+- **bundle id** (Mac): named after the app's id, like `~/Library/Containers/com.tinyspeck.slackmacgap`.
+- **same name**: a folder with the app's exact name, like `~/Library/Application Support/Zed`.
+  Check these: another app could use the same name.
+- **install folder** (Windows): where the app was installed.
+
+You pick what to remove, confirm once, and it moves to the Trash or Recycle Bin, so you can put it back.
+On a Mac, quit the app first; apps from the App Store ask for your password.
+On Windows, the app's own uninstaller runs first, then you review what it left behind.
+Apple's own apps, Windows system components and Microsoft Store apps are not listed.
 
 ## What it reports
 

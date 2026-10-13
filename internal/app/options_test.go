@@ -23,6 +23,9 @@ func TestParse(t *testing.T) {
 		{[]string{"--large", "2000", "--quick"}, Options{Command: "report", LargeMB: 2000, Quick: true}},
 		{[]string{"-LargeMB", "100"}, Options{Command: "report", LargeMB: 100}},
 		{[]string{"-?"}, Options{Command: "report", Help: true}},
+		{[]string{"apps", "--json"}, Options{Command: "apps", JSON: true}},
+		{[]string{"uninstall", "Visual", "Studio", "Code", "--dry-run"}, Options{Command: "uninstall", Target: "Visual Studio Code", DryRun: true}},
+		{[]string{"--dry-run", "uninstall", "disk"}, Options{Command: "uninstall", Target: "disk", DryRun: true}},
 	}
 	for _, tt := range tests {
 		got, err := Parse(tt.args)
@@ -60,6 +63,10 @@ func TestParseUsageErrors(t *testing.T) {
 		{"--older-than", "-1"},
 		{"--unknown"},
 		{"--json=yes"},
+		{"uninstall"},
+		{"uninstall", "Slack", "--yes"},
+		{"uninstall", "Slack", "--json"},
+		{"apps", "--dry-run"},
 	} {
 		_, err := Parse(args)
 		if !errors.As(err, new(UsageError)) {

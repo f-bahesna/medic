@@ -3,11 +3,13 @@
 package fsx
 
 import (
+	"fmt"
 	"io/fs"
 	"os"
 	"path/filepath"
 	"strings"
 	"syscall"
+	"unsafe"
 )
 
 type fileID struct{}
@@ -66,4 +68,44 @@ func ID(path string, _ fs.FileInfo) string { return strings.ToLower(filepath.Cle
 func linkEntry(e os.DirEntry) bool {
 	info, err := e.Info()
 	return err != nil || attributes(info)&attrReparsePoint != 0
+}
+
+var procSHFileOperation = syscall.NewLazyDLL("shell32.dll").NewProc("SHFileOperationW")
+
+type shFileOpStruct struct {
+	Hwnd                 uintptr
+	Func                 uint32
+	From                 *uint16
+	To                   *uint16
+	Flags                uint16
+	AnyOperationsAborted int32
+	NameMappings         uintptr
+	ProgressTitle        *uint16
+}
+
+// Trash moves path to the Recycle Bin, so it can be restored.
+func Trash(path string) error {
+	if _, err := os.Lstat(path); err != nil {
+		return nil
+	}
+	const (
+		foDelete          = 3
+		fofSilent         = 0x4
+		fofNoConfirmation = 0x10
+		fofAllowUndo      = 0x40
+		fofNoErrorUI      = 0x400
+	)
+	from, err := syscall.UTF16FromString(path)
+	if err != nil {
+		return err
+	}
+	from = append(from, 0) // the list ends with two NULs
+	op := shFileOpStruct{Func: foDelete, From: &from[0], Flags: fofSilent | fofNoConfirmation | fofAllowUndo | fofNoErrorUI}
+	if r, _, _ := procSHFileOperation.Call(uintptr(unsafe.Pointer(&op))); r != 0 || op.AnyOperationsAborted != 0 {
+		return fmt.Errorf("the Recycle Bin refused it (code %d)", r)
+	}
+	if _, err := os.Lstat(path); err == nil {
+		return fmt.Errorf("it is still there, maybe in use")
+	}
+	return nil
 }
