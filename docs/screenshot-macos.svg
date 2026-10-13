@@ -8,8 +8,8 @@
 <text x="517.0" y="22" text-anchor="middle" font-family="-apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif" font-size="13" fill="#9da1a8">Terminal - medic</text>
 <text font-family="ui-monospace, SFMono-Regular, Menlo, Consolas, 'Cascadia Mono', monospace" font-size="13" fill="#d7dae0" xml:space="preserve">
 <tspan x="20" y="58"><tspan fill="#98c379">~ $ </tspan>medic --quick</tspan>
-<tspan x="20" y="94"><tspan fill="#ffffff" font-weight="bold">medic 0.3.0</tspan> <tspan fill="#7f848e">- MacBook Air, macOS 15.5</tspan></tspan>
-<tspan x="20" y="112">  <tspan fill="#7f848e">Read-only scan. Nothing is deleted unless you run --clean and confirm.</tspan></tspan>
+<tspan x="20" y="94"><tspan fill="#ffffff" font-weight="bold">medic 0.4.0</tspan> <tspan fill="#7f848e">- MacBook Air, macOS 15.5</tspan></tspan>
+<tspan x="20" y="112">  <tspan fill="#7f848e">Read-only. Nothing is deleted unless you run 'medic clean' or 'medic purge' and confirm.</tspan></tspan>
 <tspan x="20" y="148"><tspan fill="#56b6c2" font-weight="bold">Disk</tspan></tspan>
 <tspan x="20" y="166"><tspan fill="#7f848e">------------------------------------------------------------</tspan></tspan>
 <tspan x="20" y="184">  Capacity               494.4 GB</tspan>
@@ -65,7 +65,7 @@
 <tspan x="20" y="1138">                      <tspan fill="#7f848e">Rarely needed after installing. Clean moves them to the Trash, so it can be undone.</tspan></tspan>
 <tspan x="20" y="1174"><tspan fill="#56b6c2" font-weight="bold">Delete commands</tspan></tspan>
 <tspan x="20" y="1192"><tspan fill="#7f848e">------------------------------------------------------------</tspan></tspan>
-<tspan x="20" y="1210">  <tspan fill="#7f848e">Prefer --clean: it asks per item and only touches allowlisted folders.</tspan></tspan>
+<tspan x="20" y="1210">  <tspan fill="#7f848e">Prefer 'medic clean': it asks first and only touches allowlisted folders.</tspan></tspan>
 <tspan x="20" y="1228">  <tspan fill="#7f848e">To clean by hand, quit the related apps and copy the command under an item.</tspan></tspan>
 <tspan x="20" y="1264">  <tspan fill="#98c379">SAFE   </tspan>  <tspan fill="#ffffff" font-weight="bold">User app caches</tspan> <tspan fill="#7f848e">(14.8 GB)</tspan></tspan>
 <tspan x="20" y="1282">    rm -rf "$HOME/Library/Caches"/*</tspan>
@@ -86,6 +86,6 @@
 <tspan x="20" y="1642">  <tspan fill="#98c379">SAFE   </tspan>  <tspan fill="#ffffff" font-weight="bold">24.4 GB   </tspan> regenerated automatically, no data loss</tspan>
 <tspan x="20" y="1660">  <tspan fill="#e5c07b">CAUTION</tspan>  <tspan fill="#ffffff" font-weight="bold">11.5 GB   </tspan> regenerable, read the note first</tspan>
 <tspan x="20" y="1678">  <tspan fill="#e06c75">REVIEW </tspan>  <tspan fill="#ffffff" font-weight="bold">29.4 GB   </tspan> your data, check by hand (never cleaned by medic)</tspan>
-<tspan x="20" y="1714">  Run <tspan fill="#ffffff" font-weight="bold">medic --clean</tspan> to clean SAFE and CAUTION items (asks for each one),</tspan>
-<tspan x="20" y="1732">  or <tspan fill="#ffffff" font-weight="bold">medic --dry-run</tspan> to preview without changing anything.</tspan>
+<tspan x="20" y="1714">  Run <tspan fill="#ffffff" font-weight="bold">medic clean</tspan> to pick SAFE and CAUTION items to clean,</tspan>
+<tspan x="20" y="1732">  or <tspan fill="#ffffff" font-weight="bold">medic clean --dry-run</tspan> to preview without changing anything.</tspan>
 </text></svg>

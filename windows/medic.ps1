@@ -3,9 +3,19 @@
     medic for Windows - see what is filling up your PC and what is safe to clean.
 
 .DESCRIPTION
-    Read-only by default: nothing is deleted unless you pass -Clean and confirm
-    every single item. Only SAFE and CAUTION items can ever be cleaned. REVIEW
-    items (your personal data) are reported, never touched.
+    Read-only by default: nothing is deleted unless you run "medic clean" or
+    "medic purge" and confirm. Only SAFE and CAUTION items can ever be cleaned.
+    REVIEW items (your personal data) are reported, never touched.
+
+    Commands (the first argument):
+      report    Full report (default)
+      disk      Disk, space hogs, delete commands, dev folders and large files
+      memory    Memory use and the apps using the most
+      clean     Pick SAFE and CAUTION items to clean
+      purge     Pick dependency and build folders of inactive projects to delete
+      check     Exit with 1 when the disk is almost full or memory is critical
+
+    Exit codes: 0 ok, 1 error or failed check, 2 wrong usage.
 
     Runs on the Windows PowerShell 5.1 that ships with Windows 10 and 11, and on
     PowerShell 7. No dependencies. The macOS version lives in macos/medic.sh.
@@ -21,44 +31,74 @@
     Full read-only report, once medic is installed (see the README).
 
 .EXAMPLE
-    powershell -ExecutionPolicy Bypass -File .\medic.ps1
-    Full read-only report, running the downloaded script directly.
+    medic clean -DryRun
+    Pick items to clean and show what would happen, change nothing.
 
 .EXAMPLE
-    powershell -ExecutionPolicy Bypass -File .\medic.ps1 -DryRun
-    Walk through the cleanup and show what would happen, change nothing.
+    medic clean -Yes -Only safe
+    Clean every SAFE item without asking, for scripts.
+
+.EXAMPLE
+    medic check -MinFree 20G
+    Exit with 1 when the system drive has less than 20 GB free.
+
+.EXAMPLE
+    powershell -ExecutionPolicy Bypass -File .\medic.ps1
+    Full read-only report, running the downloaded script directly.
 
 .LINK
     https://github.com/f-bahesna/medic
 #>
 [CmdletBinding()]
 param(
-    # Clean SAFE and CAUTION items, asking before each one.
-    [switch]$Clean,
-    # Like -Clean, but only shows what would be done.
-    [switch]$DryRun,
-    # Skip the slow scans (large files, dev projects, breakdowns).
+    # report (default), disk, memory, clean, purge or check.
+    [Parameter(Position = 0)]
+    [string]$Command = '',
+    # Print JSON instead of text (report, disk, memory, purge, check).
+    [switch]$Json,
+    # Skip the slow scans (breakdowns, dev folders, large files).
     [switch]$Quick,
     # Report files bigger than this many megabytes.
     [ValidateRange(1, 10485760)]
     [int]$LargeMB = 500,
-    # Extra folders to scan for node_modules and Python venvs.
+    # Extra project folders to scan.
     [string[]]$DevDir = @(),
+    # clean, purge: show what would happen, change nothing.
+    [switch]$DryRun,
+    # clean, purge: do not ask, take every listed item.
+    [switch]$Yes,
+    # clean: only these levels (safe, caution) or item ids, comma-separated. With -Yes the default is safe.
+    [string]$Only = '',
+    # purge: only projects with no file changed in this many days (0 for all).
+    [ValidateRange(0, 36500)]
+    [int]$OlderThan = 30,
+    # check: free space needed on the system drive, like 20G, 500M or 10%.
+    [string]$MinFree = '10%',
     # Disable colored output (NO_COLOR is honored too).
     [switch]$NoColor,
     # Show the version and exit.
-    [switch]$Version
+    [switch]$Version,
+    # Before 0.4: same as "clean".
+    [switch]$Clean
 )
 
 Set-StrictMode -Version 2.0
 
-$ScriptVersion = '0.3.0'
-$DoClean = [bool]($Clean -or $DryRun)
+$ScriptVersion = '0.4.0'
+$Cmd = $Command.ToLowerInvariant()
+if ($Cmd -eq 'ram') { $Cmd = 'memory' }
+if (-not $Cmd -and ($Clean -or $DryRun)) { $Cmd = 'clean' }   # before 0.4 cleaning was -Clean or -DryRun
+if (-not $Cmd) { $Cmd = 'report' }
 $DryRunMode = [bool]$DryRun
+$AssumeYes = [bool]$Yes
+$PurgeDays = $OlderThan
+$MinFreeText = $MinFree
 $SkipSlowScans = [bool]$Quick
 $LargeBytes = [long]$LargeMB * 1MB
 $ExtraDevDirs = @($DevDir)
-$UseColor = -not $NoColor -and -not $env:NO_COLOR
+$UseColor = -not $NoColor -and -not $env:NO_COLOR -and -not $Json
+$Failed = $false
+$OnlyTokens = @($Only.ToLowerInvariant() -split '[,\s]+' | Where-Object { $_ })
 
 # File attributes, as numbers so they work on every .NET version.
 $ReparsePoint = 0x400        # junctions and symlinks: never followed, never deleted through
@@ -203,23 +243,35 @@ function Find-LargeFile([string]$Root, [long]$MinBytes) {
 # Disk overview
 # ---------------------------------------------------------------------------
 
-function Show-Disk {
-    Write-Section 'Disk'
-    $disks = Get-CimInstance Win32_LogicalDisk -Filter 'DriveType=3' | Sort-Object DeviceID
-    foreach ($d in $disks) {
+function Get-DiskInfo {
+    foreach ($d in @(Get-CimInstance Win32_LogicalDisk -Filter 'DriveType=3' | Sort-Object DeviceID)) {
         if (-not $d.Size) { continue }
-        $used = $d.Size - $d.FreeSpace
-        $pct = [int][math]::Floor($used * 100 / $d.Size)
-        $name = $d.DeviceID
+        $used = [long]($d.Size - $d.FreeSpace)
+        [pscustomobject]@{
+            Name       = $d.DeviceID
+            VolumeName = $d.VolumeName
+            System     = ($d.DeviceID -eq $env:SystemDrive)
+            Total      = [long]$d.Size
+            Used       = $used
+            Free       = [long]$d.FreeSpace
+            Pct        = [int][math]::Floor($used * 100 / $d.Size)
+        }
+    }
+}
+
+function Show-Disk($Disks) {
+    Write-Section 'Disk'
+    foreach ($d in $Disks) {
+        $name = $d.Name
         if ($d.VolumeName) { $name += " $($d.VolumeName)" }
-        if ($d.DeviceID -eq $env:SystemDrive) { $name += ' (system drive)' }
+        if ($d.System) { $name += ' (system drive)' }
         Write-Text "  $name"
-        Write-Row '  Capacity' (Format-Size $d.Size)
-        Write-Host ('  {0,-22} {1,-10} ' -f '  Used', (Format-Size $used)) -NoNewline
-        Write-Bar $pct
-        Write-Host " $pct%"
-        Write-Row '  Free' (Format-Size $d.FreeSpace)
-        if ($d.DeviceID -eq $env:SystemDrive -and $pct -ge 90) {
+        Write-Row '  Capacity' (Format-Size $d.Total)
+        Write-Host ('  {0,-22} {1,-10} ' -f '  Used', (Format-Size $d.Used)) -NoNewline
+        Write-Bar $d.Pct
+        Write-Host " $($d.Pct)%"
+        Write-Row '  Free' (Format-Size $d.Free)
+        if ($d.System -and $d.Pct -ge 90) {
             Write-Warn 'The Windows drive is almost full. Updates fail and Windows slows down below ~10% free.'
         }
     }
@@ -229,15 +281,11 @@ function Show-Disk {
 # Memory (RAM) overview
 # ---------------------------------------------------------------------------
 
-function Show-Memory {
+function Get-MemoryInfo {
     $os = Get-CimInstance Win32_OperatingSystem
     $perf = Get-CimInstance Win32_PerfFormattedData_PerfOS_Memory
     $total = [double]$os.TotalVisibleMemorySize * 1024
     $available = [double]$perf.AvailableBytes
-    $used = $total - $available
-    $cached = [double]$perf.StandbyCacheCoreBytes + $perf.StandbyCacheNormalPriorityBytes +
-        $perf.StandbyCacheReserveBytes + $perf.ModifiedPageListBytes
-    $pct = [int][math]::Floor($used * 100 / $total)
     $commitPct = [int][math]::Floor($perf.CommittedBytes * 100 / $perf.CommitLimit)
     $availPct = [int][math]::Floor($available * 100 / $total)
 
@@ -251,40 +299,66 @@ function Show-Memory {
         $pageSize += [double]$p.AllocatedBaseSize * 1MB
     }
 
+    $pressure = 'normal'
+    if ($availPct -lt 10 -or $commitPct -ge 90) { $pressure = 'critical' }
+    elseif ($availPct -lt 20 -or $commitPct -ge 80) { $pressure = 'warning' }
+
+    $apps = @(Get-Process | Where-Object { $_.Id -ne 0 } | Group-Object ProcessName | ForEach-Object {
+            [pscustomobject]@{
+                Name  = $_.Name
+                Count = $_.Count
+                Bytes = [long]($_.Group | Measure-Object WorkingSet64 -Sum).Sum
+            }
+        } | Sort-Object Bytes -Descending | Select-Object -First 8)
+
+    [pscustomobject]@{
+        Total       = $total
+        Used        = $total - $available
+        Available   = $available
+        Cached      = [double]$perf.StandbyCacheCoreBytes + $perf.StandbyCacheNormalPriorityBytes +
+        $perf.StandbyCacheReserveBytes + $perf.ModifiedPageListBytes
+        Compressed  = $compressed
+        Committed   = [double]$perf.CommittedBytes
+        CommitLimit = [double]$perf.CommitLimit
+        CommitPct   = $commitPct
+        AvailPct    = $availPct
+        PageUsed    = $pageUsed
+        PageSize    = $pageSize
+        Pressure    = $pressure
+        TopApps     = $apps
+    }
+}
+
+function Show-Memory($Mem) {
+    $pct = [int][math]::Floor($Mem.Used * 100 / $Mem.Total)
     Write-Section 'Memory (RAM)'
-    Write-Row 'Physical memory' (Format-Size $total)
-    Write-Host ('  {0,-22} {1,-10} ' -f 'In use', (Format-Size $used)) -NoNewline
+    Write-Row 'Physical memory' (Format-Size $Mem.Total)
+    Write-Host ('  {0,-22} {1,-10} ' -f 'In use', (Format-Size $Mem.Used)) -NoNewline
     Write-Bar $pct
     Write-Host " $pct%"
-    if ($compressed) { Write-Row '  Compressed' (Format-Size $compressed) }
-    Write-Row -Label 'Cached' -Value (Format-Size $cached) -Hint '(freed instantly when apps need it)'
-    Write-Row 'Available' (Format-Size $available)
-    Write-Row -Label 'Committed' -Value ('{0} of {1}' -f (Format-Size $perf.CommittedBytes), (Format-Size $perf.CommitLimit)) -Hint "($commitPct%, RAM + page file)"
-    Write-Row 'Page file used' ('{0} of {1}' -f (Format-Size $pageUsed), (Format-Size $pageSize))
+    if ($Mem.Compressed) { Write-Row '  Compressed' (Format-Size $Mem.Compressed) }
+    Write-Row -Label 'Cached' -Value (Format-Size $Mem.Cached) -Hint '(freed instantly when apps need it)'
+    Write-Row 'Available' (Format-Size $Mem.Available)
+    Write-Row -Label 'Committed' -Value ('{0} of {1}' -f (Format-Size $Mem.Committed), (Format-Size $Mem.CommitLimit)) -Hint "($($Mem.CommitPct)%, RAM + page file)"
+    Write-Row 'Page file used' ('{0} of {1}' -f (Format-Size $Mem.PageUsed), (Format-Size $Mem.PageSize))
 
     Write-Host ('  {0,-22} ' -f 'Memory pressure') -NoNewline
-    $high = $availPct -lt 10 -or $commitPct -ge 90
-    $elevated = $availPct -lt 20 -or $commitPct -ge 80
-    if ($high) { Write-Text 'High' Red -NoNewline }
-    elseif ($elevated) { Write-Text 'Elevated' DarkYellow -NoNewline }
-    else { Write-Text 'Normal' Green -NoNewline }
-    Write-Text " ($availPct% available)" DarkGray
+    switch ($Mem.Pressure) {
+        'critical' { Write-Text 'High' Red -NoNewline }
+        'warning' { Write-Text 'Elevated' DarkYellow -NoNewline }
+        default { Write-Text 'Normal' Green -NoNewline }
+    }
+    Write-Text " ($($Mem.AvailPct)% available)" DarkGray
 
     Write-Host ''
     Write-Text '  Top apps by memory' '' -NoNewline
     Write-Text ' (working set, approximate)' DarkGray
-    Get-Process | Where-Object { $_.Id -ne 0 } | Group-Object ProcessName | ForEach-Object {
-        [pscustomobject]@{
-            Name  = $_.Name
-            Count = $_.Count
-            Bytes = ($_.Group | Measure-Object WorkingSet64 -Sum).Sum
-        }
-    } | Sort-Object Bytes -Descending | Select-Object -First 8 | ForEach-Object {
-        Write-Host ('    {0,-10} {1}' -f (Format-Size $_.Bytes), $_.Name) -NoNewline
-        if ($_.Count -gt 1) { Write-Text " ($($_.Count) processes)" DarkGray } else { Write-Host '' }
+    foreach ($app in $Mem.TopApps) {
+        Write-Host ('    {0,-10} {1}' -f (Format-Size $app.Bytes), $app.Name) -NoNewline
+        if ($app.Count -gt 1) { Write-Text " ($($app.Count) processes)" DarkGray } else { Write-Host '' }
     }
 
-    if ($high -or $elevated) {
+    if ($Mem.Pressure -ne 'normal') {
         Write-Warn 'Your PC is short on memory. Close apps at the top of this list, or restart.'
     } else {
         Write-Note 'High "in use" memory is normal. Only memory pressure tells you if RAM is a problem.'
@@ -513,7 +587,7 @@ function Show-DeleteCommand {
     if ($entries.Count -eq 0) { return }
 
     Write-Section 'Delete commands'
-    Write-Note 'Prefer -Clean: it asks per item and only touches allowlisted folders.'
+    Write-Note "Prefer 'medic clean': it asks first and only touches allowlisted folders."
     Write-Note 'To clean by hand, close the related apps and copy the commands under an item.'
     if (@($entries | Where-Object { $_.Commands -match '^Clear-Folder' }).Count -gt 0) {
         Write-Host ''
@@ -575,41 +649,50 @@ function Show-AppDataBreakdown {
     Write-Note 'uninstalled can be removed, but check first. medic never cleans these folders.'
 }
 
-function Show-DevProject {
+# The project folders that exist, each once, as full paths.
+function Get-DevRoot {
     $U = $env:USERPROFILE
     $candidates = @("$U\dev", "$U\source\repos", "$U\Projects", "$U\code", "$U\workspace",
         "$U\src", "$U\git", "$U\Documents\GitHub") + $ExtraDevDirs
-    $roots = @($candidates | Where-Object { $_ -and (Test-Path -LiteralPath $_ -PathType Container) } |
+    return @($candidates | Where-Object { $_ -and (Test-Path -LiteralPath $_ -PathType Container) } |
             ForEach-Object { [IO.Path]::GetFullPath($_).TrimEnd('\') } | Sort-Object -Unique)
-    if ($roots.Count -eq 0) { return }
-
-    Write-Progress -Activity 'medic' -Status 'Scanning node_modules and Python virtualenvs'
-    $found = @(Find-DependencyFolder $roots | Sort-Object -Unique | ForEach-Object {
-            [pscustomobject]@{ Path = $_; Bytes = Get-PathSize $_ }
-        } | Sort-Object Bytes -Descending)
-    Write-Progress -Activity 'medic' -Completed
-    if ($found.Count -eq 0) { return }
-
-    Write-Section 'Dev project dependencies'
-    $total = ($found | Measure-Object Bytes -Sum).Sum
-    Write-Text "  $(Format-Size $total) in $($found.Count) folders" '' -NoNewline
-    Write-Text ' (node_modules, Python venvs)' DarkGray
-    foreach ($f in ($found | Select-Object -First 8)) {
-        Write-Host ('    {0,-10} {1}' -f (Format-Size $f.Bytes), (Format-Path $f.Path))
-    }
-    Write-Note "REVIEW: reinstallable with 'npm install' / 'pip install -r ...', but only remove them for"
-    Write-Note "projects you are not working on. 'npx npkill' lets you pick them interactively."
 }
 
-function Show-LargeFile {
-    Write-Progress -Activity 'medic' -Status "Scanning for files larger than $LargeMB MB"
-    $files = @(Find-LargeFile $env:USERPROFILE $LargeBytes | Sort-Object Bytes -Descending | Select-Object -First 15)
+# node_modules and Python venvs in the project folders, biggest first.
+function Get-DevFolder {
+    $roots = @(Get-DevRoot)
+    if ($roots.Count -eq 0) { return }
+    Write-Progress -Activity 'medic' -Status 'Scanning node_modules and Python virtualenvs'
+    Find-DependencyFolder $roots | Sort-Object -Unique | ForEach-Object {
+        [pscustomobject]@{ Path = $_; Bytes = Get-PathSize $_ }
+    } | Sort-Object Bytes -Descending
     Write-Progress -Activity 'medic' -Completed
-    if ($files.Count -eq 0) { return }
+}
 
+function Show-DevFolder($Found) {
+    if ($Found.Count -eq 0) { return }
+    Write-Section 'Dev project dependencies'
+    $total = ($Found | Measure-Object Bytes -Sum).Sum
+    Write-Text "  $(Format-Size $total) in $($Found.Count) folders" '' -NoNewline
+    Write-Text ' (node_modules, Python venvs)' DarkGray
+    foreach ($f in ($Found | Select-Object -First 8)) {
+        Write-Host ('    {0,-10} {1}' -f (Format-Size $f.Bytes), (Format-Path $f.Path))
+    }
+    Write-Note 'REVIEW: reinstallable, but only remove them for projects you are not working on.'
+    Write-Note "Run 'medic purge' to pick the ones of projects untouched for $PurgeDays days."
+}
+
+function Get-LargeFileList {
+    Write-Progress -Activity 'medic' -Status "Scanning for files larger than $LargeMB MB"
+    Find-LargeFile $env:USERPROFILE $LargeBytes | Sort-Object Bytes -Descending | Select-Object -First 15
+    Write-Progress -Activity 'medic' -Completed
+}
+
+function Show-LargeFile($Files) {
+    if ($Files.Count -eq 0) { return }
     Write-Section "Large files (> $LargeMB MB)"
     Write-Text ('  {0,-10} {1,-11} {2}' -f 'SIZE', 'MODIFIED', 'FILE') DarkGray
-    foreach ($f in $files) {
+    foreach ($f in $Files) {
         Write-Host ('  {0,-10} {1,-11} {2}' -f (Format-Size $f.Bytes), $f.Modified.ToString('yyyy-MM-dd'), (Format-Path $f.Path))
     }
     Write-Note 'REVIEW: these are your files. Old videos, disk images and archives are the usual suspects.'
@@ -671,11 +754,13 @@ function Show-Summary {
         Write-Text ('  {0,-10}' -f (Format-Size $sum[$l[0]])) '' -NoNewline
         Write-Host " $($l[1])"
     }
-    if (-not $DoClean) {
-        Write-Host ''
-        Write-Host '  Run again with -Clean to clean SAFE and CAUTION items (asks for each one),'
-        Write-Host '  or with -DryRun to preview without changing anything.'
-    }
+    Write-Host ''
+    Write-Host '  Run ' -NoNewline
+    Write-Text 'medic clean' White -NoNewline
+    Write-Host ' to pick SAFE and CAUTION items to clean,'
+    Write-Host '  or ' -NoNewline
+    Write-Text 'medic clean -DryRun' White -NoNewline
+    Write-Host ' to preview without changing anything.'
 }
 
 # ---------------------------------------------------------------------------
@@ -807,44 +892,342 @@ function Invoke-ItemClean($Item) {
     }
 }
 
-function Invoke-Clean {
-    Write-Section 'Clean up'
-    if ([Console]::IsInputRedirected) {
-        Write-Warn '-Clean needs an interactive console to ask for confirmation.'
-        return
-    }
-    if ($DryRunMode) {
-        Write-Note 'Dry run: nothing will be changed.'
-    } else {
-        Write-Note 'Close the apps whose caches you clean. Answer y to clean an item, anything else skips it.'
-    }
+# ---------------------------------------------------------------------------
+# Picking items: numbered list, then "1,3", "2-5", "all" or a safety level
+# ---------------------------------------------------------------------------
 
-    $drive = Get-CimInstance Win32_LogicalDisk -Filter "DeviceID='$env:SystemDrive'"
-    $before = $drive.FreeSpace
-    $cleaned = 0
-    foreach ($item in (Get-VisibleItem)) {
-        if (-not $item.Cleanable -or $item.Safety -eq 'REVIEW') { continue }
+# The picked row numbers (1-based), or $null when the answer is not valid.
+# Levels are the safety level of each row, for "safe" and "caution".
+function Get-Selection([string]$Answer, [int]$Count, [string[]]$Levels = @()) {
+    $picked = New-Object 'System.Collections.Generic.SortedSet[int]'
+    foreach ($token in ($Answer.ToLowerInvariant() -split '[,\s]+' | Where-Object { $_ })) {
+        if ($token -eq 'all') {
+            for ($n = 1; $n -le $Count; $n++) { [void]$picked.Add($n) }
+        } elseif ($token -eq 'safe' -or $token -eq 'caution') {
+            if ($Levels.Count -eq 0) { return $null }
+            for ($n = 1; $n -le $Count; $n++) { if ($Levels[$n - 1] -eq $token) { [void]$picked.Add($n) } }
+        } elseif ($token -match '^(\d+)-(\d+)$') {
+            $from = [int]$Matches[1]
+            $to = [int]$Matches[2]
+            if ($from -lt 1 -or $to -gt $Count -or $from -gt $to) { return $null }
+            for ($n = $from; $n -le $to; $n++) { [void]$picked.Add($n) }
+        } elseif ($token -match '^\d+$' -and [int]$token -ge 1 -and [int]$token -le $Count) {
+            [void]$picked.Add([int]$token)
+        } else {
+            return $null
+        }
+    }
+    return , @($picked)
+}
+
+# Ask which rows to take. Returns their 0-based indexes, or nothing on cancel.
+function Read-Selection([int]$Count, [string]$Hint, [string[]]$Levels = @()) {
+    while ($true) {
         Write-Host ''
-        Write-Host '  ' -NoNewline
-        Write-Badge $item.Safety
-        Write-Text "  $($item.Label)" '' -NoNewline
-        Write-Host " ($(Format-Size $item.Bytes))"
-        Write-Note $item.Note
-        if ($item.Admin -and -not $IsAdmin) {
-            Write-Warn 'skipped: needs "Run as administrator"'
-            continue
+        Write-Host '  Which ones? ' -NoNewline
+        Write-Text "$Hint, Enter to cancel:" DarkGray -NoNewline
+        $answer = Read-Host ' '
+        if (-not $answer) { return $null }
+        $picked = Get-Selection -Answer $answer -Count $Count -Levels $Levels
+        if ($null -ne $picked -and $picked.Count -gt 0) { return , @($picked | ForEach-Object { $_ - 1 }) }
+        Write-Warn "'$answer' is not a valid choice."
+    }
+}
+
+function Confirm-Action([string]$Question) {
+    return (Read-Host "  $Question [y/N]") -match '^(y|yes)$'
+}
+
+function Test-Interactive([string]$What) {
+    if ([Console]::IsInputRedirected) {
+        Write-Warn "$What needs a console to ask first. Pass -Yes to go ahead without asking."
+        return $false
+    }
+    return $true
+}
+
+function Get-SystemDriveFree { return [long](Get-CimInstance Win32_LogicalDisk -Filter "DeviceID='$env:SystemDrive'").FreeSpace }
+
+function Write-Freed([long]$Before) {
+    if ($DryRunMode) { return }
+    Write-Host ''
+    Write-Host ('  Free space on {0} went from {1} to {2}.' -f $env:SystemDrive, (Format-Size $Before), (Format-Size (Get-SystemDriveFree)))
+}
+
+# ---------------------------------------------------------------------------
+# medic clean
+# ---------------------------------------------------------------------------
+
+# Does the item pass -Only (default: everything, or SAFE with -Yes)?
+function Test-OnlyMatch($Item) {
+    $tokens = $OnlyTokens
+    if ($tokens.Count -eq 0 -and $AssumeYes) { $tokens = @('safe') }
+    if ($tokens.Count -eq 0) { return $true }
+    foreach ($t in $tokens) {
+        if ($t -eq $Item.Safety.ToLowerInvariant() -or $t -eq $Item.Id) { return $true }
+    }
+    return $false
+}
+
+function Assert-Only {
+    foreach ($t in $OnlyTokens) {
+        if ($t -eq 'safe' -or $t -eq 'caution') { continue }
+        $known = @($Items | Where-Object { $_.Id -eq $t -and $_.Cleanable -and $_.Safety -ne 'REVIEW' })
+        if ($known.Count -eq 0) {
+            Exit-Usage "-Only: '$t' is not a level (safe, caution) or a cleanable item id. 'medic report -Json' lists the ids."
         }
-        $answer = Read-Host '  Clean it? [y/N]'
-        if ($answer -match '^(y|yes)$') {
-            Invoke-ItemClean $item
-            $cleaned++
+    }
+}
+
+function Invoke-Clean {
+    $rows = @(Get-VisibleItem | Where-Object { $_.Cleanable -and $_.Safety -ne 'REVIEW' -and (Test-OnlyMatch $_) })
+    Write-Section 'Clean up'
+    if ($rows.Count -eq 0) { Write-Note 'Nothing to clean.'; return }
+
+    Write-Text ('  {0,-3} {1,-10} {2,-7}  {3}' -f '#', 'SIZE', 'SAFETY', 'WHAT') DarkGray
+    for ($n = 0; $n -lt $rows.Count; $n++) {
+        $item = $rows[$n]
+        Write-Host ('  {0,-3} {1,-10} ' -f ($n + 1), (Format-Size $item.Bytes)) -NoNewline
+        Write-Badge $item.Safety
+        Write-Text "  $($item.Label)"
+        $note = $item.Note
+        if ($item.Admin -and -not $IsAdmin) { $note = "[admin, skipped: run as administrator] $note" }
+        elseif ($item.Admin) { $note = "[admin] $note" }
+        Write-Text ('  {0,-22}  {1}' -f '', $note) DarkGray
+    }
+
+    if ($AssumeYes) {
+        $picked = @(0..($rows.Count - 1))
+    } else {
+        if (-not (Test-Interactive 'clean')) { $script:Failed = $true; return }
+        $levels = @($rows | ForEach-Object { $_.Safety.ToLowerInvariant() })
+        $picked = Read-Selection -Count $rows.Count -Hint "numbers like 1,3 or 2-5, 'safe', 'all'" -Levels $levels
+        if ($null -eq $picked) { Write-Note 'Nothing cleaned.'; return }
+        if (-not $DryRunMode) {
+            $total = [long]0
+            foreach ($n in $picked) { $total += $rows[$n].Bytes }
+            Write-Note 'Close the apps whose caches you clean.'
+            if (-not (Confirm-Action "Clean $($picked.Count) item(s), $(Format-Size $total)?")) { Write-Note 'Nothing cleaned.'; return }
         }
     }
 
-    if ($DryRunMode) { return }
-    $after = (Get-CimInstance Win32_LogicalDisk -Filter "DeviceID='$env:SystemDrive'").FreeSpace
+    if ($DryRunMode) { Write-Note 'Dry run: nothing will be changed.' }
+    $before = Get-SystemDriveFree
+    $cleaned = 0
+    foreach ($n in $picked) {
+        $item = $rows[$n]
+        Write-Text "  $($item.Label)"
+        if ($item.Admin -and -not $IsAdmin) { Write-Warn 'skipped: needs "Run as administrator"'; continue }
+        Invoke-ItemClean $item
+        $cleaned++
+    }
+    if (-not $DryRunMode) { Write-Host ''; Write-Host "  Cleaned $cleaned item(s)." -NoNewline }
+    Write-Freed $before
+}
+
+# ---------------------------------------------------------------------------
+# medic purge: dependency and build folders of projects nobody touched lately
+# ---------------------------------------------------------------------------
+
+# The folder names purge looks for. Get-PurgeKind checks the file next to them
+# (or in them, for venvs) that proves what they are.
+$PurgeNames = @('node_modules', '.next', '.venv', 'venv', 'target', 'build')
+
+function Get-PurgeKind([System.IO.DirectoryInfo]$Dir) {
+    if (-not $Dir.Exists -or ([int]$Dir.Attributes -band $ReparsePoint)) { return '' }
+    $parent = $Dir.Parent.FullName
+    switch ($Dir.Name.ToLowerInvariant()) {
+        'node_modules' { if (Test-Path -LiteralPath (Join-Path $parent 'package.json') -PathType Leaf) { return 'node_modules' } }
+        '.next' { if (Test-Path -LiteralPath (Join-Path $parent 'package.json') -PathType Leaf) { return 'Next.js build' } }
+        { $_ -eq '.venv' -or $_ -eq 'venv' } { if (Test-Path -LiteralPath (Join-Path $Dir.FullName 'pyvenv.cfg') -PathType Leaf) { return 'Python venv' } }
+        'target' {
+            if (Test-Path -LiteralPath (Join-Path $parent 'Cargo.toml') -PathType Leaf) { return 'Rust build' }
+            if (Test-Path -LiteralPath (Join-Path $parent 'pom.xml') -PathType Leaf) { return 'Maven build' }
+        }
+        'build' {
+            if ((Test-Path -LiteralPath (Join-Path $parent 'build.gradle') -PathType Leaf) -or
+                (Test-Path -LiteralPath (Join-Path $parent 'build.gradle.kts') -PathType Leaf)) { return 'Gradle build' }
+        }
+    }
+    return ''
+}
+
+# Did any file in the project change in the last -OlderThan days? Purgeable
+# folders and .git are skipped: installs and fetches are not work.
+function Test-ProjectActive([string]$Dir) {
+    if ($PurgeDays -eq 0) { return $false }
+    $since = (Get-Date).AddDays(-$PurgeDays)
+    $stack = New-Object 'System.Collections.Generic.Stack[System.IO.DirectoryInfo]'
+    $stack.Push((New-Object System.IO.DirectoryInfo $Dir))
+    while ($stack.Count -gt 0) {
+        $d = $stack.Pop()
+        try { $entries = $d.GetFileSystemInfos() } catch { continue }
+        foreach ($e in $entries) {
+            if ($e -is [System.IO.DirectoryInfo]) {
+                if (([int]$e.Attributes -band $ReparsePoint) -or $e.Name -eq '.git' -or $PurgeNames -contains $e.Name) { continue }
+                $stack.Push($e)
+            } elseif ($e.LastWriteTime -gt $since) {
+                return $true
+            }
+        }
+    }
+    return $false
+}
+
+# Purge candidates in the project folders, biggest first.
+function Find-PurgeFolder([string[]]$Roots) {
+    $stack = New-Object 'System.Collections.Generic.Stack[System.IO.DirectoryInfo]'
+    foreach ($r in $Roots) { $stack.Push((New-Object System.IO.DirectoryInfo $r)) }
+    $found = @(while ($stack.Count -gt 0) {
+            $dir = $stack.Pop()
+            try { $subs = $dir.GetDirectories() } catch { continue }
+            foreach ($s in $subs) {
+                if ([int]$s.Attributes -band $ReparsePoint -or $s.Name -eq '.git') { continue }
+                if ($PurgeNames -notcontains $s.Name) { $stack.Push($s); continue }
+                $kind = Get-PurgeKind $s
+                if ($kind -and -not (Test-ProjectActive $s.Parent.FullName)) {
+                    Write-Progress -Activity 'medic' -Status "Scanning $(Format-Path $s.FullName)"
+                    [pscustomobject]@{ Path = $s.FullName; Kind = $kind; Bytes = Get-PathSize $s.FullName }
+                }
+            }
+        })
+    Write-Progress -Activity 'medic' -Completed
+    $found | Sort-Object Bytes -Descending
+}
+
+# Delete a purge folder itself, after checking again that it is one and that
+# it is inside a project folder. Junctions inside are removed, never followed.
+function Remove-PurgeFolder([string]$Path, [string[]]$Roots) {
+    $sep = [IO.Path]::DirectorySeparatorChar
+    $inside = @($Roots | Where-Object { $Path.StartsWith($_ + $sep, [StringComparison]::OrdinalIgnoreCase) }).Count -gt 0
+    $dir = New-Object System.IO.DirectoryInfo $Path
+    if (-not $inside -or -not (Get-PurgeKind $dir)) {
+        Write-Warn "refusing to touch $(Format-Path $Path) (not a dependency or build folder in a project folder)"
+        return $false
+    }
+    if ($DryRunMode) { Write-Note "would delete $(Format-Path $Path)"; return $true }
+    Remove-Entry $dir
+    if (Test-Path -LiteralPath $Path) { Write-Warn "could not delete everything in $(Format-Path $Path)" }
+    return $true
+}
+
+function Invoke-Purge([string[]]$Roots, $Rows) {
+    Write-Section 'Purge'
+    if ($PurgeDays -gt 0) {
+        Write-Note "Dependency and build folders of projects with no file changed in $PurgeDays days."
+    } else {
+        Write-Note 'Dependency and build folders of all projects.'
+    }
+    $list = 'no project folders found'
+    if ($Roots.Count -gt 0) { $list = ($Roots | ForEach-Object { Format-Path $_ }) -join ', ' }
+    Write-Note "Looked in: $list. Add more with -DevDir DIR."
+    if ($Rows.Count -eq 0) { Write-Note 'Nothing to purge.'; return }
+
     Write-Host ''
-    Write-Host ('  Cleaned {0} item(s). Free space on {1} went from {2} to {3}.' -f $cleaned, $env:SystemDrive, (Format-Size $before), (Format-Size $after))
+    Write-Text ('  {0,-3} {1,-10} {2,-13} {3}' -f '#', 'SIZE', 'KIND', 'FOLDER') DarkGray
+    for ($n = 0; $n -lt $Rows.Count; $n++) {
+        Write-Host ('  {0,-3} {1,-10} {2,-13} {3}' -f ($n + 1), (Format-Size $Rows[$n].Bytes), $Rows[$n].Kind, (Format-Path $Rows[$n].Path))
+    }
+    Write-Note "Reinstall with 'npm install', 'pip install -r requirements.txt' or a new build when you need them."
+
+    if ($AssumeYes) {
+        $picked = @(0..($Rows.Count - 1))
+    } else {
+        if (-not (Test-Interactive 'purge')) { $script:Failed = $true; return }
+        $picked = Read-Selection -Count $Rows.Count -Hint "numbers like 1,3 or 2-5, 'all'"
+        if ($null -eq $picked) { Write-Note 'Nothing deleted.'; return }
+        if (-not $DryRunMode) {
+            $total = [long]0
+            foreach ($n in $picked) { $total += $Rows[$n].Bytes }
+            if (-not (Confirm-Action "Delete $($picked.Count) folder(s), $(Format-Size $total)?")) { Write-Note 'Nothing deleted.'; return }
+        }
+    }
+
+    if ($DryRunMode) { Write-Note 'Dry run: nothing will be changed.' }
+    $before = Get-SystemDriveFree
+    $deleted = 0
+    foreach ($n in $picked) {
+        if (Remove-PurgeFolder $Rows[$n].Path $Roots) { $deleted++ }
+    }
+    if (-not $DryRunMode) { Write-Host ''; Write-Host "  Deleted $deleted folder(s)." -NoNewline }
+    Write-Freed $before
+}
+
+# ---------------------------------------------------------------------------
+# medic check
+# ---------------------------------------------------------------------------
+
+# -MinFree in bytes. Units are binary, like the sizes medic shows on Windows.
+function Get-MinFreeByte([long]$Total) {
+    if ($MinFreeText -match '^(\d+)%$') { return [long]($Total * [int]$Matches[1] / 100) }
+    if ($MinFreeText -match '^(\d+(?:\.\d+)?)([KMGT]?)B?$') {
+        $unit = @{ '' = 1; 'K' = 1KB; 'M' = 1MB; 'G' = 1GB; 'T' = 1TB }[$Matches[2].ToUpperInvariant()]
+        return [long]([double]$Matches[1] * $unit)
+    }
+    Exit-Usage "-MinFree: '$MinFreeText' is not a size like 20G, 500M or 10%"
+}
+
+function Invoke-Check {
+    $disk = @(Get-DiskInfo | Where-Object { $_.System }) | Select-Object -First 1
+    $mem = Get-MemoryInfo
+    $need = Get-MinFreeByte $disk.Total
+    $diskOk = $disk.Free -ge $need
+    $memOk = $mem.Pressure -ne 'critical'
+    if ($Json) {
+        Write-Json ([ordered]@{
+                version = $ScriptVersion; os = 'windows'; ok = ($diskOk -and $memOk)
+                checks  = @(
+                    [ordered]@{ name = 'disk'; ok = $diskOk; free_bytes = $disk.Free; min_free_bytes = $need }
+                    [ordered]@{ name = 'memory'; ok = $memOk; pressure = $mem.Pressure }
+                )
+            })
+    } else {
+        Write-CheckLine $diskOk "disk: $(Format-Size $disk.Free) free on $($disk.Name), needs $(Format-Size $need)"
+        Write-CheckLine $memOk "memory: pressure is $($mem.Pressure)"
+    }
+    if (-not ($diskOk -and $memOk)) { $script:Failed = $true }
+}
+
+function Write-CheckLine([bool]$Ok, [string]$Text) {
+    if ($Ok) { Write-Text 'OK   ' Green -NoNewline } else { Write-Text 'FAIL ' Red -NoNewline }
+    Write-Host $Text
+}
+
+# ---------------------------------------------------------------------------
+# JSON output. Sizes are in bytes, the same shape as the macOS version.
+# ---------------------------------------------------------------------------
+
+function Write-Json($Data) { $Data | ConvertTo-Json -Depth 6 -Compress | Write-Output }
+
+function ConvertTo-DiskJson($Disks) {
+    return , @(foreach ($d in $Disks) {
+            [ordered]@{ name = $d.Name; system = $d.System; total_bytes = $d.Total; used_bytes = $d.Used; free_bytes = $d.Free; used_percent = $d.Pct }
+        })
+}
+
+function ConvertTo-MemoryJson($Mem) {
+    return [ordered]@{
+        total_bytes = [long]$Mem.Total; used_bytes = [long]$Mem.Used; cached_bytes = [long]$Mem.Cached
+        swap_used_bytes = [long]$Mem.PageUsed; swap_total_bytes = [long]$Mem.PageSize; pressure = $Mem.Pressure
+        top_apps = @(foreach ($a in $Mem.TopApps) { [ordered]@{ name = $a.Name; bytes = $a.Bytes; processes = $a.Count } })
+    }
+}
+
+function ConvertTo-ItemJson {
+    return , @(foreach ($item in (Get-VisibleItem)) {
+            $paths = @($item.Paths | Where-Object { Test-Path -LiteralPath $_ })
+            if ($item.Id -eq 'installers') { $paths = @($script:InstallerFiles) }
+            [ordered]@{
+                id = $item.Id; label = $item.Label; safety = $item.Safety; bytes = $item.Bytes
+                cleanable = ($item.Cleanable -and $item.Safety -ne 'REVIEW'); admin = $item.Admin; note = $item.Note; paths = $paths
+            }
+        })
+}
+
+function ConvertTo-SummaryJson {
+    $sum = @{ SAFE = [long]0; CAUTION = [long]0; REVIEW = [long]0 }
+    foreach ($item in @(Get-VisibleItem)) { $sum[$item.Safety] += $item.Bytes }
+    return [ordered]@{ safe_bytes = $sum.SAFE; caution_bytes = $sum.CAUTION; review_bytes = $sum.REVIEW }
 }
 
 # ---------------------------------------------------------------------------
@@ -852,28 +1235,106 @@ function Invoke-Clean {
 # functions, which is handy for tests and for drawing the README screenshots.
 # ---------------------------------------------------------------------------
 
-function Invoke-Medic {
-    $script:IsAdmin = Test-Admin
+function Exit-Usage([string]$Message) {
+    [Console]::Error.WriteLine("medic: $Message")
+    [Console]::Error.WriteLine('Run "medic -?" for usage.')
+    exit 2
+}
+
+function Assert-Usage {
+    if ($Cmd -notin 'report', 'disk', 'memory', 'clean', 'purge', 'check') { Exit-Usage "unknown command: $Command" }
+    if ($Cmd -notin 'clean', 'purge') {
+        if ($DryRun) { Exit-Usage '-DryRun only works with clean and purge' }
+        if ($AssumeYes) { Exit-Usage '-Yes only works with clean and purge' }
+    }
+    if ($Cmd -eq 'clean' -and $Json) { Exit-Usage "clean has no JSON output; 'medic report -Json' lists the items" }
+    if ($OnlyTokens.Count -gt 0 -and $Cmd -ne 'clean') { Exit-Usage '-Only only works with clean' }
+    if ($MinFreeText -notmatch '^(\d+%|\d+(\.\d+)?[KMGTkmgt]?[Bb]?)$') { Exit-Usage "-MinFree: '$MinFreeText' is not a size like 20G, 500M or 10%" }
+}
+
+function Write-Header {
+    if ($Json -or $Cmd -eq 'check') { return }
     $os = Get-CimInstance Win32_OperatingSystem
     Write-Text "medic $ScriptVersion" '' -NoNewline
     Write-Text " - $env:COMPUTERNAME, $($os.Caption) $($os.Version)" DarkGray
-    Write-Note 'Read-only scan. Nothing is deleted unless you run -Clean and confirm.'
-    if ($IsAdmin) { Write-Note 'Running as administrator: system caches are included.' }
+    if ($Cmd -in 'clean', 'purge') {
+        if ($DryRunMode) { Write-Note 'Dry run: shows what would happen, changes nothing.' }
+    } else {
+        Write-Note "Read-only. Nothing is deleted unless you run 'medic clean' or 'medic purge' and confirm."
+    }
+    if ($IsAdmin -and $Cmd -in 'report', 'disk', 'clean') { Write-Note 'Running as administrator: system caches are included.' }
+}
 
-    Show-Disk
-    Show-Memory
+# The report and disk commands.
+function Invoke-StorageReport([bool]$WithMemory) {
+    $data = [ordered]@{ version = $ScriptVersion; os = 'windows'; command = $Cmd }
+    $disks = @(Get-DiskInfo)
+    $data.disks = ConvertTo-DiskJson $disks
+    if (-not $Json) { Show-Disk $disks }
+    if ($WithMemory) {
+        $mem = Get-MemoryInfo
+        $data.memory = ConvertTo-MemoryJson $mem
+        if (-not $Json) { Show-Memory $mem }
+    }
     Initialize-Item
     Measure-Item
-    Show-Item
-    Show-DeleteCommand
-    if (-not $SkipSlowScans) {
-        Show-AppDataBreakdown
-        Show-DevProject
-        Show-LargeFile
+    $data.items = ConvertTo-ItemJson
+    $data.summary = ConvertTo-SummaryJson
+    if (-not $Json) {
+        Show-Item
+        Show-DeleteCommand
     }
+    if (-not $SkipSlowScans) {
+        if (-not $Json) { Show-AppDataBreakdown }
+        $dev = @(Get-DevFolder)
+        $large = @(Get-LargeFileList)
+        $data.dev_folders = @(foreach ($f in $dev) { [ordered]@{ path = $f.Path; bytes = $f.Bytes } })
+        $data.large_files = @(foreach ($f in $large) { [ordered]@{ path = $f.Path; bytes = $f.Bytes; modified = $f.Modified.ToString('yyyy-MM-dd') } })
+        if (-not $Json) {
+            Show-DevFolder $dev
+            Show-LargeFile $large
+        }
+    }
+    if ($Json) { Write-Json $data; return }
     Show-SystemInfo
     Show-Summary
-    if ($DoClean) { Invoke-Clean }
+}
+
+# Sets $Failed when the command failed, for the exit code.
+function Invoke-Medic {
+    $script:IsAdmin = Test-Admin
+    Write-Header
+    switch ($Cmd) {
+        'report' { Invoke-StorageReport $true }
+        'disk' { Invoke-StorageReport $false }
+        'memory' {
+            $mem = Get-MemoryInfo
+            if ($Json) { Write-Json ([ordered]@{ version = $ScriptVersion; os = 'windows'; command = $Cmd; memory = (ConvertTo-MemoryJson $mem) }) }
+            else { Show-Memory $mem }
+        }
+        'clean' {
+            Initialize-Item
+            Assert-Only
+            Measure-Item
+            Invoke-Clean
+        }
+        'purge' {
+            $roots = @(Get-DevRoot)
+            $rows = @(Find-PurgeFolder $roots)
+            if ($Json) {
+                Write-Json ([ordered]@{
+                        version = $ScriptVersion; os = 'windows'; command = $Cmd
+                        purge = [ordered]@{
+                            older_than_days = $PurgeDays; roots = $roots
+                            folders = @(foreach ($r in $rows) { [ordered]@{ path = $r.Path; kind = $r.Kind; bytes = $r.Bytes } })
+                        }
+                    })
+            } else {
+                Invoke-Purge $roots $rows
+            }
+        }
+        'check' { Invoke-Check }
+    }
 }
 
 if ($MyInvocation.InvocationName -eq '.') { return }
@@ -883,5 +1344,7 @@ if ($PSVersionTable.PSVersion.Major -ge 6 -and -not $IsWindows) {
     Write-Error 'This is the Windows version. On macOS, run macos/medic.sh with bash instead.'
     exit 1
 }
+Assert-Usage
 
 Invoke-Medic
+if ($Failed) { exit 1 }

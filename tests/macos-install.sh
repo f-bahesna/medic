@@ -24,7 +24,7 @@ grep -qxF 'export PATH="$HOME/.local/bin:$PATH"' "$home/.zshrc" || fail "PATH li
 version=$(in_home zsh -c 'source ~/.zshrc; cd /; medic --version')
 [ "$version" = "$("$repo/macos/medic.sh" --version)" ] || fail "medic --version from / printed '$version'"
 report=$(in_home zsh -c 'source ~/.zshrc; cd /; medic --quick --no-color')
-grep -q 'Run medic --clean' <<<"$report" || fail "the report does not tell people to run 'medic --clean'"
+grep -q 'Run medic clean' <<<"$report" || fail "the report does not tell people to run 'medic clean'"
 
 in_home bash "$repo/install.sh" --from "$root/dist" >/dev/null || fail "reinstall failed"
 [ "$(grep -c 'Added by the medic installer' "$home/.zshrc")" -eq 1 ] || fail "PATH line added twice"
