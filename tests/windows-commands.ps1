@@ -69,9 +69,9 @@ try {
     Assert-True (-not (Test-Path "$local\Temp\leftover.tmp")) 'clean -Yes -Only user_temp did not clean the temp folder'
     Assert-True (Test-Path "$roaming\Code\Cache\blob") 'clean -Only user_temp also cleaned the app caches'
 
-    Invoke-MedicProcess @('purge', '-Yes') | Out-Null
-    Assert-True (-not (Test-Path "$home_\dev\old-web\node_modules")) 'purge kept node_modules of an inactive project'
-    Assert-True (-not (Test-Path "$home_\dev\old-rust\target")) 'purge kept target of an inactive Rust project'
+    $r = Invoke-MedicProcess @('purge', '-Yes')
+    Assert-True (-not (Test-Path "$home_\dev\old-web\node_modules")) "purge kept node_modules of an inactive project:`n$($r.Out)"
+    Assert-True (-not (Test-Path "$home_\dev\old-rust\target")) "purge kept target of an inactive Rust project:`n$($r.Out)"
     Assert-True (Test-Path "$home_\dev\new-web\node_modules") 'purge deleted node_modules of an active project'
     Assert-True (Test-Path "$home_\dev\no-marker\node_modules") 'purge deleted node_modules without a package.json'
     Assert-True (Test-Path "$root\outside\keep.txt") 'purge followed a junction'

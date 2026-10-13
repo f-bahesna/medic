@@ -1098,7 +1098,8 @@ function Find-PurgeFolder([string[]]$Roots) {
 # Delete a purge folder itself, after checking again that it is one and that
 # it is inside a project folder. Junctions inside are removed, never followed.
 function Remove-PurgeFolder([string]$Path, [string[]]$Roots) {
-    $inside = @($Roots | Where-Object { $Path.StartsWith($_ + '\', [StringComparison]::OrdinalIgnoreCase) }).Count -gt 0
+    $sep = [IO.Path]::DirectorySeparatorChar
+    $inside = @($Roots | Where-Object { $Path.StartsWith($_ + $sep, [StringComparison]::OrdinalIgnoreCase) }).Count -gt 0
     $dir = New-Object System.IO.DirectoryInfo $Path
     if (-not $inside -or -not (Get-PurgeKind $dir)) {
         Write-Warn "refusing to touch $(Format-Path $Path) (not a dependency or build folder in a project folder)"
