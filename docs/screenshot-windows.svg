@@ -1,4 +1,4 @@
-<svg xmlns="http://www.w3.org/2000/svg" width="1034" height="2072" viewBox="0 0 1034 2072" role="img" aria-label="Example storage-doctor output on Windows, with sample data">
+<svg xmlns="http://www.w3.org/2000/svg" width="1034" height="2072" viewBox="0 0 1034 2072" role="img" aria-label="Example medic output on Windows, with sample data">
 <rect width="1034" height="2072" rx="8" fill="#0c0c0c"/>
 <rect width="1034" height="34" rx="8" fill="#202020"/>
 <rect y="26" width="1034" height="8" fill="#202020"/>
@@ -10,8 +10,8 @@
 <rect x="963" y="12" width="10" height="10" fill="none" stroke="#cccccc" stroke-width="1"/>
 <path d="M1008 12 l10 10 M1018 12 l-10 10" stroke="#cccccc" stroke-width="1"/>
 <text font-family="ui-monospace, SFMono-Regular, Menlo, Consolas, 'Cascadia Mono', monospace" font-size="13" fill="#cccccc" xml:space="preserve">
-<tspan x="20" y="58"><tspan fill="#cccccc">PS C:\Users\alex&gt; </tspan>powershell -ExecutionPolicy Bypass -File .\storage-doctor.ps1 -Quick</tspan>
-<tspan x="20" y="94">storage-doctor 0.2.0<tspan fill="#767676"> - DESKTOP-7K2M4QX, Microsoft Windows 11 Pro 10.0.26100</tspan></tspan>
+<tspan x="20" y="58"><tspan fill="#cccccc">PS C:\Users\alex&gt; </tspan>medic -Quick</tspan>
+<tspan x="20" y="94">medic 0.3.0<tspan fill="#767676"> - DESKTOP-7K2M4QX, Microsoft Windows 11 Pro 10.0.26100</tspan></tspan>
 <tspan x="20" y="112"><tspan fill="#767676">  Read-only scan. Nothing is deleted unless you run -Clean and confirm.</tspan></tspan>
 <tspan x="20" y="148"><tspan fill="#3a96dd">Disk</tspan></tspan>
 <tspan x="20" y="166"><tspan fill="#767676">------------------------------------------------------------</tspan></tspan>
@@ -103,7 +103,7 @@
 <tspan x="20" y="1912"><tspan fill="#767676">------------------------------------------------------------</tspan></tspan>
 <tspan x="20" y="1930">  <tspan fill="#16c60c">SAFE   </tspan>  23.2 GB    regenerated automatically, no data loss</tspan>
 <tspan x="20" y="1948">  <tspan fill="#c19c00">CAUTION</tspan>  8.6 GB     regenerable, read the note first</tspan>
-<tspan x="20" y="1966">  <tspan fill="#e74856">REVIEW </tspan>  45.0 GB    your data, check by hand (never cleaned by storage-doctor)</tspan>
+<tspan x="20" y="1966">  <tspan fill="#e74856">REVIEW </tspan>  45.0 GB    your data, check by hand (never cleaned by medic)</tspan>
 <tspan x="20" y="2002">  Run again with -Clean to clean SAFE and CAUTION items (asks for each one),</tspan>
 <tspan x="20" y="2020">  or with -DryRun to preview without changing anything.</tspan>
 </text></svg>

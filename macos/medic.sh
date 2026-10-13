@@ -1,7 +1,7 @@
 #!/usr/bin/env bash
 #
-# storage-doctor for macOS - find out what is filling up your Mac and what is safe to clean.
-# The Windows version lives in windows/storage-doctor.ps1.
+# medic for macOS - find out what is filling up your Mac and what is safe to clean.
+# The Windows version lives in windows/medic.ps1.
 #
 # Read-only by default: nothing is deleted unless you pass --clean and
 # confirm every single item. Only SAFE and CAUTION items can ever be cleaned.
@@ -13,7 +13,7 @@
 
 set -o pipefail
 
-VERSION="0.2.0"
+VERSION="0.3.0"
 
 QUICK=0
 CLEAN=0
@@ -22,11 +22,16 @@ LARGE_MB=500
 USE_COLOR=1
 DEV_DIRS=()
 
+# How to run medic again: "medic" when it is installed on PATH, otherwise the
+# way it was started (bash macos/medic.sh).
+PROG="bash $0"
+[ "$(command -v "${0##*/}" 2>/dev/null)" = "$0" ] && PROG=${0##*/}
+
 usage() {
   cat <<EOF
-storage-doctor $VERSION (macOS) - see what is filling up your Mac and what is safe to clean.
+medic $VERSION (macOS) - see what is filling up your Mac and what is safe to clean.
 
-Usage: storage-doctor.sh [options]
+Usage: $PROG [options]
 
 Options:
   --clean          Clean SAFE and CAUTION items, asking before each one
@@ -47,7 +52,7 @@ EOF
 }
 
 die() {
-  printf 'storage-doctor: %s\n' "$*" >&2
+  printf 'medic: %s\n' "$*" >&2
   exit 1
 }
 
@@ -68,14 +73,14 @@ while [ $# -gt 0 ]; do
       ;;
     --no-color) USE_COLOR=0 ;;
     -h | --help) usage; exit 0 ;;
-    -v | --version) echo "storage-doctor $VERSION"; exit 0 ;;
+    -v | --version) echo "medic $VERSION"; exit 0 ;;
     *) usage >&2; die "unknown option: $1" ;;
   esac
   shift
 done
 
-[ "$(uname -s)" = "Darwin" ] || die "this is the macOS version. On Windows, run windows/storage-doctor.ps1 from PowerShell instead"
-[ "$(id -u)" -ne 0 ] || die "do not run with sudo; storage-doctor only looks at your own user files"
+[ "$(uname -s)" = "Darwin" ] || die "this is the macOS version. On Windows, run windows/medic.ps1 from PowerShell instead"
+[ "$(id -u)" -ne 0 ] || die "do not run with sudo; medic only looks at your own user files"
 if [ -z "$HOME" ] || [ "$HOME" = "/" ] || [ ! -d "$HOME" ]; then
   die "HOME is not set to a valid directory"
 fi
@@ -86,7 +91,7 @@ else
   B='' D='' RED='' GRN='' YEL='' CYN='' N=''
 fi
 
-WORK=$(mktemp -d "${TMPDIR:-/tmp}/storage-doctor.XXXXXX") || die "cannot create a temp directory"
+WORK=$(mktemp -d "${TMPDIR:-/tmp}/medic.XXXXXX") || die "cannot create a temp directory"
 trap 'rm -rf "$WORK"' EXIT
 
 # ---------------------------------------------------------------------------
@@ -490,7 +495,7 @@ show_breakdowns() {
   show_breakdown "$HOME/Library/Caches" 8
   show_breakdown "$HOME/Library/Application Support" 8
   note "Application Support holds app data (settings, databases). Folders of apps you already"
-  note "uninstalled can be removed, but check first. storage-doctor never cleans this folder."
+  note "uninstalled can be removed, but check first. medic never cleans this folder."
 }
 
 scan_dev_projects() {
@@ -579,10 +584,10 @@ show_summary() {
   section "Summary"
   printf '  %s  %s%-10s%s regenerated automatically, no data loss\n' "$(badge SAFE)" "$B" "$(human "$safe")" "$N"
   printf '  %s  %s%-10s%s regenerable, read the note first\n' "$(badge CAUTION)" "$B" "$(human "$caution")" "$N"
-  printf '  %s  %s%-10s%s your data, check by hand (never cleaned by storage-doctor)\n' "$(badge REVIEW)" "$B" "$(human "$review")" "$N"
+  printf '  %s  %s%-10s%s your data, check by hand (never cleaned by medic)\n' "$(badge REVIEW)" "$B" "$(human "$review")" "$N"
   if [ "$CLEAN" -eq 0 ]; then
-    printf '\n  Run %s%s --clean%s to clean SAFE and CAUTION items (asks for each one),\n' "$B" "$0" "$N"
-    printf '  or %s%s --dry-run%s to preview without changing anything.\n' "$B" "$0" "$N"
+    printf '\n  Run %s%s --clean%s to clean SAFE and CAUTION items (asks for each one),\n' "$B" "$PROG" "$N"
+    printf '  or %s%s --dry-run%s to preview without changing anything.\n' "$B" "$PROG" "$N"
   fi
 }
 
@@ -590,7 +595,7 @@ show_summary() {
 # Cleaning
 # ---------------------------------------------------------------------------
 
-# The only folders whose contents storage-doctor will ever delete. Exact matches only.
+# The only folders whose contents medic will ever delete. Exact matches only.
 CLEANABLE_DIRS=(
   "$HOME/Library/Caches"
   "$HOME/Library/Logs"
@@ -728,7 +733,7 @@ run_clean() {
 # Main
 # ---------------------------------------------------------------------------
 
-printf '%sstorage-doctor %s%s %s- %s, macOS %s%s\n' "$B" "$VERSION" "$N" "$D" "$(scutil --get ComputerName 2>/dev/null || hostname)" "$(sw_vers -productVersion)" "$N"
+printf '%smedic %s%s %s- %s, macOS %s%s\n' "$B" "$VERSION" "$N" "$D" "$(scutil --get ComputerName 2>/dev/null || hostname)" "$(sw_vers -productVersion)" "$N"
 note "Read-only scan. Nothing is deleted unless you run --clean and confirm."
 if [ -d "$HOME/Library/Safari" ] && ! ls "$HOME/Library/Safari" >/dev/null 2>&1; then
   warn "Your terminal has no Full Disk Access, so Trash and Mail sizes may show as empty."

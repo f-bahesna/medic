@@ -10,13 +10,15 @@ jobs:
     steps:
       - uses: actions/checkout@v5
       - name: Lint
-        run: brew install shellcheck && shellcheck macos/storage-doctor.sh tests/macos-delete-commands.sh
+        run: brew install shellcheck && shellcheck macos/medic.sh install.sh tools/dist.sh tests/*.sh
       - name: Syntax check with the built-in bash 3.2
-        run: /bin/bash -n macos/storage-doctor.sh
+        run: /bin/bash -n macos/medic.sh
       - name: Read-only scan
-        run: /bin/bash macos/storage-doctor.sh --no-color
+        run: /bin/bash macos/medic.sh --no-color
       - name: Printed delete commands are safe
         run: tests/macos-delete-commands.sh
+      - name: Install, run from any folder, uninstall
+        run: tests/macos-install.sh
       - name: README screenshots match the current output
         run: |
           python3 docs/make-screenshots.py
@@ -29,23 +31,34 @@ jobs:
       - name: Lint
         shell: pwsh
         run: |
-          if ((Get-Content -Raw windows/storage-doctor.ps1) -match '[^\x00-\x7F]') {
-            throw 'storage-doctor.ps1 must be ASCII only: Windows PowerShell 5.1 misreads other characters'
+          foreach ($file in 'windows/medic.ps1', 'install.ps1') {
+            if ((Get-Content -Raw $file) -match '[^\x00-\x7F]') {
+              throw "$file must be ASCII only: Windows PowerShell 5.1 misreads other characters"
+            }
           }
           Install-Module PSScriptAnalyzer -Force -Scope CurrentUser
-          $results = 'windows/storage-doctor.ps1', 'tests/windows-clear-folder.ps1', 'docs/screenshot-data-windows.ps1' |
+          $results = 'windows/medic.ps1', 'install.ps1', 'tests/windows-clear-folder.ps1', 'tests/windows-install.ps1', 'docs/screenshot-data-windows.ps1' |
             ForEach-Object { Invoke-ScriptAnalyzer -Path $_ -Settings windows/PSScriptAnalyzerSettings.psd1 }
           $results | Format-Table -AutoSize
           if ($results) { exit 1 }
       - name: Read-only scan with Windows PowerShell 5.1
         shell: powershell
-        run: .\windows\storage-doctor.ps1 -NoColor
+        run: .\windows\medic.ps1 -NoColor
       - name: Read-only scan with PowerShell 7
         shell: pwsh
-        run: ./windows/storage-doctor.ps1 -Quick -NoColor
+        run: ./windows/medic.ps1 -Quick -NoColor
       - name: Printed Clear-Folder helper is safe (Windows PowerShell 5.1)
         shell: powershell
         run: .\tests\windows-clear-folder.ps1
       - name: Printed Clear-Folder helper is safe (PowerShell 7)
         shell: pwsh
         run: ./tests/windows-clear-folder.ps1
+      - name: Build the release files
+        shell: bash
+        run: tools/dist.sh dist
+      - name: Install, run from any folder, uninstall (Windows PowerShell 5.1)
+        shell: powershell
+        run: .\tests\windows-install.ps1 -Dist dist
+      - name: Install, run from any folder, uninstall (PowerShell 7)
+        shell: pwsh
+        run: ./tests/windows-install.ps1 -Dist dist
