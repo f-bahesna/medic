@@ -1,24 +1,14 @@
-"""Draw the README screenshots from the real output of both scripts, with made-up data.
+"""Draw the README screenshots from medic's real rendering, with made-up data.
 
-macOS: medic.sh runs unmodified, installed as "medic" on PATH. The system commands it reads from (df, du,
-vm_stat, sysctl, ps, ...) are replaced by fakes earlier on PATH, and HOME points at a
-throwaway folder.
-Windows: screenshot-data-windows.ps1 runs the real script functions in PowerShell 7
-and only replaces the ones that read the system.
-
-Both run in a pseudo terminal so the colors are real, and the ANSI output is turned
-into SVG. Run on a Mac with PowerShell 7 installed (or PWSH=/path/to/pwsh):
+tools/screenshot prints the report the way medic does, using the real lists of
+locations, with sample sizes and system data. This turns its colored output
+into SVG. Run from anywhere with Go installed:
 
     python3 docs/make-screenshots.py
 """
-import getpass
 import os
 import re
-import shutil
-import stat
 import subprocess
-import sys
-import tempfile
 from xml.sax.saxutils import escape
 
 DOCS = os.path.dirname(os.path.abspath(__file__))
@@ -30,152 +20,10 @@ CHAR = 8.0      # advance width of a 13px monospace glyph, with a little slack
 PAD_X = 20
 MAX_COLS = 124  # longer lines wrap, like they would in a terminal window
 
-KB_PER_GB = 1e6 / 1.024  # the macOS script shows decimal units, like Finder
 
-
-# ---------------------------------------------------------------- macOS ----
-
-def gb(value):
-    return int(value * KB_PER_GB)
-
-
-MAC_SIZES = {  # path under HOME -> size in KB, as `du -sk` would report it
-    "Pictures/Photos Library.photoslibrary": gb(24.3),
-    "Library/Caches": gb(14.8),
-    "Library/Containers/com.docker.docker/Data/vms": gb(9.6),
-    "Library/Developer/Xcode/DerivedData": gb(7.2),
-    "Library/Application Support/MobileSync/Backup": gb(5.1),
-    ".npm/_cacache": gb(2.4),
-}
-MAC_INSTALLERS = {  # file in ~/Downloads -> size in MB
-    "Docker.dmg": 610, "UTM.dmg": 430, "LibreOffice_25.8.1_MacOS_aarch64.dmg": 330,
-    "googlechrome.dmg": 230, "Slack-4.46.99-macOS.dmg": 180, "Zoom.pkg": 120,
-}
-MAC_APPS = [  # (executable, processes, total MB)
-    ("/Applications/Google Chrome.app/Contents/MacOS/Google Chrome", 24, 3174),
-    ("/Applications/Slack.app/Contents/MacOS/Slack", 6, 1229),
-    ("/Applications/Visual Studio Code.app/Contents/MacOS/Electron", 9, 1126),
-    ("/Applications/Docker.app/Contents/MacOS/com.docker.backend", 4, 842),
-    ("/Applications/Spotify.app/Contents/MacOS/Spotify", 3, 612),
-    ("/System/Library/CoreServices/Finder.app/Contents/MacOS/Finder", 1, 214),
-    ("/System/Library/PrivateFrameworks/SkyLight.framework/Resources/WindowServer", 1, 176),
-    ("/usr/libexec/trustd", 1, 38),
-]
-
-PAGE = 16384
-PAGES_PER_GB = (1 << 30) // PAGE
-
-
-def pages(value_gb):
-    return int(value_gb * PAGES_PER_GB)
-
-
-MAC_FAKES = {
-    "df": """#!/bin/bash
-echo "Filesystem 1024-blocks Used Available Capacity iused ifree %iused Mounted on"
-case "$2" in
-  /) echo "/dev/disk3s1s1 482812500 11523438 61718750 16% 0 0 0% /" ;;
-  *) echo "/dev/disk3s5 482812500 393164063 61718750 87% 0 0 0% /System/Volumes/Data" ;;
-esac
-""",
-    "du": """#!/bin/bash
-shift
-for p in "$@"; do
-  kb=$(awk -F'\\t' -v p="$p" '$1 == p { print $2 }' "$FAKE_SIZES")
-  printf '%s\\t%s\\n' "${kb:-4}" "$p"
-done
-""",
-    "vm_stat": f"""#!/bin/bash
-cat <<EOF
-Mach Virtual Memory Statistics: (page size of {PAGE} bytes)
-Pages free:                               {int(712 * 1024 * 1024 / PAGE)}.
-Pages wired down:                         {pages(2.3)}.
-Pages purgeable:                          {pages(0.2)}.
-File-backed pages:                        {pages(3.7)}.
-Anonymous pages:                          {pages(6.3)}.
-Pages occupied by compressor:             {pages(3.0)}.
-EOF
-""",
-    "sysctl": """#!/bin/bash
-case "$2" in
-  hw.memsize) echo 17179869184 ;;
-  kern.memorystatus_vm_pressure_level) echo 1 ;;
-  vm.swapusage) echo "total = 2048.00M  used = 1228.80M  free = 819.20M  (encrypted)" ;;
-esac
-""",
-    "memory_pressure": "#!/bin/bash\necho 'System-wide memory free percentage: 52%'\n",
-    "ps": "#!/bin/bash\ncat \"$FAKE_PS\"\n",
-    "scutil": "#!/bin/bash\necho 'MacBook Air'\n",
-    "sw_vers": "#!/bin/bash\necho 15.5\n",
-    "tmutil": "#!/bin/bash\necho com.apple.TimeMachine.2026-10-10-093012.local\n",
-    "npm": "#!/bin/bash\n",
-    "docker": "#!/bin/bash\n",
-}
-
-
-def mac_output():
-    tmp = tempfile.mkdtemp(prefix="medic-shot.")
-    try:
-        home, bin_dir = os.path.join(tmp, "home"), os.path.join(tmp, "bin")
-        os.makedirs(bin_dir)
-        for name, body in MAC_FAKES.items():
-            path = os.path.join(bin_dir, name)
-            with open(path, "w") as f:
-                f.write(body)
-            os.chmod(path, os.stat(path).st_mode | stat.S_IEXEC)
-        os.symlink(os.path.join(ROOT, "macos", "medic.sh"), os.path.join(bin_dir, "medic"))  # like install.sh --link
-
-        sizes = []
-        for rel, kb in MAC_SIZES.items():
-            os.makedirs(os.path.join(home, rel))
-            open(os.path.join(home, rel, "data"), "w").close()  # not empty
-            sizes.append(f"{os.path.join(home, rel)}\t{kb}")
-        os.makedirs(os.path.join(home, "Downloads"))
-        for name, mb in MAC_INSTALLERS.items():
-            path = os.path.join(home, "Downloads", name)
-            open(path, "w").close()
-            sizes.append(f"{path}\t{int(mb * 1000 / 1.024)}")
-        with open(os.path.join(tmp, "sizes"), "w") as f:
-            f.write("\n".join(sizes) + "\n")
-
-        with open(os.path.join(tmp, "ps"), "w") as f:
-            for path, count, total_mb in MAC_APPS:
-                helper = path.replace("/Contents/MacOS/", "/Contents/Frameworks/Helper.app/Contents/MacOS/")
-                for i in range(count):
-                    f.write(f"{total_mb * 1024 // count} {path if i == 0 else helper}\n")
-
-        env = {"HOME": home, "PATH": f"{bin_dir}:/usr/bin:/bin:/usr/sbin:/sbin", "TERM": "xterm-256color",
-               "TMPDIR": tmp, "FAKE_SIZES": os.path.join(tmp, "sizes"), "FAKE_PS": os.path.join(tmp, "ps")}
-        return run_in_pty(["/bin/bash", "-c", "exec medic --quick 2>/dev/null"], cwd=home, env=env)
-    finally:
-        shutil.rmtree(tmp)
-
-
-# -------------------------------------------------------------- Windows ----
-
-def windows_output():
-    pwsh = os.environ.get("PWSH") or shutil.which("pwsh")
-    if not pwsh:
-        sys.exit("PowerShell 7 is needed for the Windows screenshot: install it or set PWSH=/path/to/pwsh")
-    env = {"HOME": tempfile.gettempdir(), "PATH": "/usr/bin:/bin", "TERM": "xterm-256color"}
-    return run_in_pty([pwsh, "-NoProfile", "-NoLogo", "-File", os.path.join(DOCS, "screenshot-data-windows.ps1")],
-                      cwd=DOCS, env=env)
-
-
-# ------------------------------------------------------------ rendering ----
-
-def run_in_pty(cmd, cwd, env):
-    """Run cmd with a terminal as stdout, so the script prints its colors."""
-    out = subprocess.run(["script", "-q", "/dev/null"] + cmd, cwd=cwd, env=env,
-                         stdin=subprocess.DEVNULL, stdout=subprocess.PIPE, check=True).stdout.decode()
-    # The screenshots are published: never let anything from this machine end up in them.
-    for private in {os.path.expanduser("~"), getpass.getuser(), os.uname().nodename.split(".")[0]}:
-        if private and private.lower() in out.lower():
-            sys.exit(f"refusing to write screenshots: the output contains {private!r} from this machine:\n{out}")
-    for marker in ("Exception", "Error:", "Line |", "command not found"):
-        if marker in out:
-            sys.exit(f"refusing to write screenshots: the script printed an error:\n{out}")
-    return out
+def sample_output(system):
+    return subprocess.run(["go", "run", "./tools/screenshot", system], cwd=ROOT,
+                          stdout=subprocess.PIPE, check=True).stdout.decode()
 
 
 SGR = re.compile(r"\x1b\[([0-9;]*)m")
@@ -305,5 +153,5 @@ WIN_THEME = {  # Windows Terminal "Campbell" colors
 
 
 if __name__ == "__main__":
-    render("screenshot-macos.svg", "medic --quick", parse_ansi(mac_output()), MAC_THEME)
-    render("screenshot-windows.svg", "medic -Quick", parse_ansi(windows_output()), WIN_THEME)
+    render("screenshot-macos.svg", "medic --quick", parse_ansi(sample_output("macos")), MAC_THEME)
+    render("screenshot-windows.svg", "medic --quick", parse_ansi(sample_output("windows")), WIN_THEME)

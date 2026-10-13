@@ -1,7 +1,8 @@
 name: Release
 
-# Push a tag like v0.3.0 to publish a release. The installers download
-# medic.sh / medic.ps1 and check them against the SHA256SUMS published here.
+# Push a tag like v0.5.0 to publish a release. The tag is the version medic
+# reports. The installers download the archive for their system and check it
+# against the SHA256SUMS published here.
 on:
   push:
     tags: ['v*']
@@ -14,13 +15,14 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v5
-      - name: Tag matches the version in both scripts
+      - uses: actions/setup-go@v5
+        with:
+          go-version-file: go.mod
+      - name: Tag is a version
         run: |
-          v=${GITHUB_REF_NAME#v}
-          grep -q "^VERSION=\"$v\"" macos/medic.sh || { echo "::error::macos/medic.sh is not version $v"; exit 1; }
-          grep -q "^\$ScriptVersion = '$v'" windows/medic.ps1 || { echo "::error::windows/medic.ps1 is not version $v"; exit 1; }
+          [[ "$GITHUB_REF_NAME" =~ ^v[0-9]+\.[0-9]+\.[0-9]+$ ]] || { echo "::error::Tags look like v1.2.3, got $GITHUB_REF_NAME"; exit 1; }
       - name: Build the release files
-        run: tools/dist.sh dist
+        run: tools/dist.sh dist "${GITHUB_REF_NAME#v}"
       - name: Publish
         env:
           GH_TOKEN: ${{ github.token }}

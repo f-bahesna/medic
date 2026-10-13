@@ -4,11 +4,9 @@
 
 .DESCRIPTION
     Installs for the current user only, no administrator rights needed:
-    medic.ps1 goes into %LOCALAPPDATA%\Programs\medic, and a small medic.cmd
-    launcher into its bin folder, which is added to your user PATH.
-
-    The launcher runs medic with "-ExecutionPolicy Bypass" for that one run, so
-    no PowerShell setting on your PC is changed.
+    medic.exe goes into %LOCALAPPDATA%\Programs\medic\bin, which is added to
+    your user PATH. An install of medic before 0.5 (a script and a medic.cmd
+    launcher) is replaced.
 
 .EXAMPLE
     irm https://github.com/f-bahesna/medic/releases/latest/download/install.ps1 | iex
@@ -23,7 +21,7 @@
 #>
 [CmdletBinding()]
 param(
-    # Install this release (for example v0.3.0) instead of the latest.
+    # Install this release (for example v0.5.0) instead of the latest.
     [string]$Version = '',
     # Install into this folder instead of %LOCALAPPDATA%\Programs\medic.
     [string]$InstallDir = '',
@@ -97,46 +95,56 @@ function Remove-UserPath([string]$Dir) {
     }
 }
 
-function Test-MedicScript([string]$Path) {
-    return (Test-Path -LiteralPath $Path -PathType Leaf) -and
-        ((Get-Content -LiteralPath $Path -TotalCount 5) -match '^\s*medic for Windows')
+# Is the file medic: the binary, or a file medic before 0.5 installed?
+function Test-MedicFile([string]$Path) {
+    if (-not (Test-Path -LiteralPath $Path -PathType Leaf)) { return $false }
+    return [bool](Select-String -LiteralPath $Path -Pattern 'github.com/f-bahesna/medic', 'medic for Windows', 'medic launcher' -SimpleMatch -Quiet)
+}
+
+# The build for this PC. ARM PCs get the ARM build even when this runs in an
+# emulated x64 PowerShell.
+function Get-MedicArch {
+    $arch = $env:PROCESSOR_ARCHITECTURE
+    if ($env:PROCESSOR_ARCHITEW6432) { $arch = $env:PROCESSOR_ARCHITEW6432 }
+    if ($arch -eq 'ARM64') { return 'arm64' }
+    return 'amd64'
+}
+
+# medic before 0.5 was a script with a medic.cmd launcher; the binary replaces both.
+function Remove-OldMedic([string]$Dir) {
+    foreach ($file in (Join-Path $Dir 'medic.ps1'), (Join-Path $Dir 'bin\medic.cmd')) {
+        if (Test-MedicFile $file) { Remove-Item -LiteralPath $file -Force }
+    }
 }
 
 function Install-Medic([string]$Dir, [string]$Source, [string]$Tag, [bool]$ModifyPath) {
     $binDir = Join-Path $Dir 'bin'
-    $target = Join-Path $Dir 'medic.ps1'
-    if ((Test-Path -LiteralPath $target) -and -not (Test-MedicScript $target)) {
+    $target = Join-Path $binDir 'medic.exe'
+    if ((Test-Path -LiteralPath $target) -and -not (Test-MedicFile $target)) {
         throw "$target already exists and is not medic, leaving it alone"
     }
 
+    $archive = "medic_windows_$(Get-MedicArch).zip"
     $tmp = Join-Path ([IO.Path]::GetTempPath()) ('medic-install-' + [guid]::NewGuid().ToString('N'))
     New-Item -ItemType Directory -Path $tmp | Out-Null
     try {
-        foreach ($name in 'SHA256SUMS', 'medic.ps1') {
+        foreach ($name in 'SHA256SUMS', $archive) {
             Get-ReleaseFile -Name $name -Destination (Join-Path $tmp $name) -Source $Source -Tag $Tag
         }
-        Test-Checksum (Join-Path $tmp 'medic.ps1') (Join-Path $tmp 'SHA256SUMS')
-        $parseErrors = $null
-        [void][Management.Automation.Language.Parser]::ParseFile((Join-Path $tmp 'medic.ps1'), [ref]$null, [ref]$parseErrors)
-        if ($parseErrors) { throw 'the downloaded medic.ps1 does not parse, refusing to install it' }
+        Test-Checksum (Join-Path $tmp $archive) (Join-Path $tmp 'SHA256SUMS')
+        Expand-Archive -LiteralPath (Join-Path $tmp $archive) -DestinationPath (Join-Path $tmp 'unpacked')
+        $exe = Join-Path $tmp 'unpacked\medic.exe'
+        $null = & $exe --version
+        if ($LASTEXITCODE -ne 0) { throw 'the downloaded medic.exe does not run on this PC, refusing to install it' }
 
         New-Item -ItemType Directory -Path $binDir -Force | Out-Null
-        Copy-Item -LiteralPath (Join-Path $tmp 'medic.ps1') -Destination $target -Force
+        Copy-Item -LiteralPath $exe -Destination $target -Force
     } finally {
         Remove-Item -LiteralPath $tmp -Recurse -Force -ErrorAction SilentlyContinue
     }
+    Remove-OldMedic $Dir
 
-    # medic.ps1 stays outside the PATH folder: PowerShell would otherwise pick it
-    # over medic.cmd and refuse to run it under the default execution policy.
-    $launcher = @(
-        '@echo off'
-        'rem medic launcher, written by the medic installer.'
-        'powershell.exe -NoProfile -ExecutionPolicy Bypass -File "%~dp0..\medic.ps1" %*'
-        'exit /b %ERRORLEVEL%'
-    )
-    Set-Content -LiteralPath (Join-Path $binDir 'medic.cmd') -Value $launcher -Encoding Ascii
-
-    $installed = & powershell.exe -NoProfile -ExecutionPolicy Bypass -File $target -Version
+    $installed = & $target --version
     Write-Host "Installed $installed to $target."
     if ($ModifyPath) {
         Add-UserPath $binDir
@@ -145,7 +153,7 @@ function Install-Medic([string]$Dir, [string]$Source, [string]$Tag, [bool]$Modif
         Write-Host "Add $binDir to your PATH to run medic from any folder."
     }
     $found = Get-Command medic -CommandType Application -ErrorAction SilentlyContinue | Select-Object -First 1
-    if ($found -and $found.Source -ne (Join-Path $binDir 'medic.cmd')) {
+    if ($found -and $found.Source -ne $target) {
         Write-Host "Note: $($found.Source) comes earlier on your PATH and runs instead of this medic."
     }
     Write-Host ''
@@ -154,15 +162,14 @@ function Install-Medic([string]$Dir, [string]$Source, [string]$Tag, [bool]$Modif
 
 function Uninstall-Medic([string]$Dir) {
     $binDir = Join-Path $Dir 'bin'
-    $target = Join-Path $Dir 'medic.ps1'
-    if ((Test-Path -LiteralPath $target) -and -not (Test-MedicScript $target)) {
+    $target = Join-Path $binDir 'medic.exe'
+    if ((Test-Path -LiteralPath $target) -and -not (Test-MedicFile $target)) {
         throw "$target is not medic, leaving it alone"
     }
     Remove-UserPath $binDir
     # Only the files the installer wrote, then the folders if that left them empty.
-    foreach ($file in (Join-Path $binDir 'medic.cmd'), $target) {
-        if (Test-Path -LiteralPath $file) { Remove-Item -LiteralPath $file -Force }
-    }
+    if (Test-Path -LiteralPath $target) { Remove-Item -LiteralPath $target -Force }
+    Remove-OldMedic $Dir
     foreach ($folder in $binDir, $Dir) {
         if ((Test-Path -LiteralPath $folder) -and -not (Get-ChildItem -LiteralPath $folder -Force)) {
             Remove-Item -LiteralPath $folder -Force
