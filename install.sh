@@ -26,10 +26,9 @@ Installs medic for macOS as a command you can run from any folder.
 Usage: install.sh [options]
 
 Options:
-  --version TAG     Install this release (for example v0.3.0) instead of the latest
+  --version TAG     Install this release (for example v0.5.0) instead of the latest
   --dir DIR         Install into DIR instead of ~/.local/bin
   --no-modify-path  Do not add DIR to PATH in your shell profile
-  --link            Link to macos/medic.sh in this checkout, for working on medic
   --from URL|DIR    Download the release files from here instead of GitHub (mirrors, tests)
   --uninstall       Remove medic
   -h, --help        Show this help
@@ -43,10 +42,9 @@ die() {
 
 while [ $# -gt 0 ]; do
   case "$1" in
-    --version) shift; VERSION=${1:-}; [ -n "$VERSION" ] || die "--version needs a release tag, like v0.3.0" ;;
+    --version) shift; VERSION=${1:-}; [ -n "$VERSION" ] || die "--version needs a release tag, like v0.5.0" ;;
     --dir) shift; BIN_DIR=${1:-}; [ -n "$BIN_DIR" ] || die "--dir needs a folder" ;;
     --no-modify-path) MODIFY_PATH=0 ;;
-    --link) MODE="link" ;;
     --from) shift; FROM=${1:-}; [ -n "$FROM" ] || die "--from needs a URL or a folder" ;;
     --uninstall) MODE="uninstall" ;;
     -h | --help) usage; exit 0 ;;
@@ -131,40 +129,37 @@ check_shadowed() {
   fi
 }
 
-is_medic() { [ -f "$1" ] && head -n 5 "$1" | grep -q '^# medic for macOS'; }
+# is_medic FILE - is FILE medic: the binary, or the script of medic before 0.5?
+is_medic() { [ -f "$1" ] && grep -aqE 'github.com/f-bahesna/medic|^# medic for macOS' "$1"; }
+
+# arch - the build for this Mac. Apple silicon runs the arm64 build even when
+# this script runs under Rosetta.
+arch() {
+  if [ "$(sysctl -n hw.optional.arm64 2>/dev/null)" = "1" ]; then echo arm64; else echo amd64; fi
+}
 
 install_release() {
-  local tmp
+  local tmp archive
   tmp=$(mktemp -d "${TMPDIR:-/tmp}/medic-install.XXXXXX") || die "cannot create a temp directory"
   # shellcheck disable=SC2064 # expand $tmp now, it is local
   trap "rm -rf '$tmp'" EXIT
+  archive="medic_macos_$(arch).tar.gz"
   fetch SHA256SUMS "$tmp/SHA256SUMS"
-  fetch medic.sh "$tmp/medic.sh"
-  verify "$tmp/medic.sh" "$tmp/SHA256SUMS"
-  /bin/bash -n "$tmp/medic.sh" || die "the downloaded medic.sh does not parse, refusing to install it"
+  fetch "$archive" "$tmp/$archive"
+  verify "$tmp/$archive" "$tmp/SHA256SUMS"
+  tar -xzf "$tmp/$archive" -C "$tmp" medic || die "cannot unpack $archive"
+  "$tmp/medic" --version >/dev/null 2>&1 || die "the downloaded medic does not run on this Mac, refusing to install it"
 
   mkdir -p "$BIN_DIR" || die "cannot create $BIN_DIR"
   if [ -e "$TARGET" ] && ! [ -L "$TARGET" ] && ! is_medic "$TARGET"; then
     die "$(tilde "$TARGET") already exists and is not medic, leaving it alone"
   fi
   # Copy next to the target and rename, so a running medic is never half-written.
-  if ! { cp "$tmp/medic.sh" "$BIN_DIR/.medic.new" && chmod 755 "$BIN_DIR/.medic.new" && mv -f "$BIN_DIR/.medic.new" "$TARGET"; }; then
+  if ! { cp "$tmp/medic" "$BIN_DIR/.medic.new" && chmod 755 "$BIN_DIR/.medic.new" && mv -f "$BIN_DIR/.medic.new" "$TARGET"; }; then
     rm -f "$BIN_DIR/.medic.new"
     die "cannot write $TARGET"
   fi
   printf 'Installed %s to %s.\n' "$("$TARGET" --version)" "$(tilde "$TARGET")"
-}
-
-install_link() {
-  local src
-  src="$(cd "$(dirname "$0")" 2>/dev/null && pwd)/macos/medic.sh"
-  [ -f "$src" ] || die "--link needs to run from a medic checkout: bash install.sh --link"
-  mkdir -p "$BIN_DIR" || die "cannot create $BIN_DIR"
-  if [ -e "$TARGET" ] && ! [ -L "$TARGET" ] && ! is_medic "$TARGET"; then
-    die "$(tilde "$TARGET") already exists and is not medic, leaving it alone"
-  fi
-  ln -sfn "$src" "$TARGET" || die "cannot link $TARGET"
-  printf 'Linked %s to %s.\n' "$(tilde "$TARGET")" "$(tilde "$src")"
 }
 
 uninstall() {
@@ -185,6 +180,5 @@ uninstall() {
 
 case "$MODE" in
   install) install_release; add_to_path; check_shadowed; printf '\nRun: medic\n' ;;
-  link) install_link; add_to_path; check_shadowed ;;
   uninstall) uninstall ;;
 esac

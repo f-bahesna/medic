@@ -4,14 +4,16 @@
 # only deletes dependency folders of inactive projects, never through a symlink.
 set -euo pipefail
 
-medic="$(cd "$(dirname "$0")/.." && pwd)/macos/medic.sh"
+repo=$(cd "$(dirname "$0")/.." && pwd)
 root=$(mktemp -d)
 trap 'rm -rf "$root"' EXIT
 home="$root/home"
+medic="$root/medic"
+(cd "$repo" && go build -o "$medic" ./cmd/medic)
 
 fail() { echo "FAIL: $*"; exit 1; }
 blob() { mkdir -p "$(dirname "$1")" && head -c 2000000 /dev/urandom >"$1"; }
-run() { HOME="$home" /bin/bash "$medic" --no-color "$@" </dev/null; }
+run() { HOME="$home" "$medic" --no-color "$@" </dev/null; }
 json() { python3 -c 'import json, sys; json.load(sys.stdin)' || fail "medic $* did not print valid JSON"; }
 
 blob "$home/Library/Caches/app/blob"

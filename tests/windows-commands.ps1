@@ -4,9 +4,11 @@
 $ErrorActionPreference = 'Stop'
 Set-StrictMode -Version 2.0
 
-$medic = Join-Path $PSScriptRoot '..\windows\medic.ps1'
-$exe = (Get-Process -Id $PID).Path   # the same PowerShell edition that runs this test
 $root = Join-Path ([IO.Path]::GetTempPath()) ('medic-commands-' + [guid]::NewGuid().ToString('N'))
+$medic = Join-Path $root 'medic.exe'
+Push-Location (Join-Path $PSScriptRoot '..')
+try { go build -o $medic ./cmd/medic } finally { Pop-Location }
+if ($LASTEXITCODE -ne 0) { throw 'FAIL: go build' }
 $home_ = Join-Path $root 'profile'
 $local = Join-Path $home_ 'AppData\Local'
 $roaming = Join-Path $home_ 'AppData\Roaming'
@@ -25,7 +27,7 @@ function Invoke-MedicProcess([string[]]$Arguments) {
         $env:USERPROFILE = $home_
         $env:LOCALAPPDATA = $local
         $env:APPDATA = $roaming
-        $out = '' | & $exe -NoProfile -ExecutionPolicy Bypass -File $medic @Arguments -NoColor 2>$null
+        $out = '' | & $medic @Arguments -NoColor 2>$null
         return [pscustomobject]@{ Code = $LASTEXITCODE; Out = ($out -join "`n") }
     } finally {
         foreach ($k in $saved.Keys) { Set-Item -Path "env:$k" -Value $saved[$k] }

@@ -5,65 +5,89 @@ on:
   pull_request:
 
 jobs:
+  dist:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v5
+      - uses: actions/setup-go@v5
+        with:
+          go-version-file: go.mod
+      - name: Build the release files
+        run: tools/dist.sh dist
+      - uses: actions/upload-artifact@v4
+        with:
+          name: dist
+          path: dist/
+
   macos:
+    needs: dist
     runs-on: macos-latest
     steps:
       - uses: actions/checkout@v5
+      - uses: actions/setup-go@v5
+        with:
+          go-version-file: go.mod
       - name: Lint
-        run: brew install shellcheck && shellcheck macos/medic.sh install.sh tools/dist.sh tests/*.sh
-      - name: Syntax check with the built-in bash 3.2
-        run: /bin/bash -n macos/medic.sh
-      - name: Read-only scan
-        run: /bin/bash macos/medic.sh --no-color
-      - name: Printed delete commands are safe
-        run: tests/macos-delete-commands.sh
+        run: |
+          test -z "$(gofmt -l .)" || { gofmt -l .; echo "::error::Run: gofmt -w ."; exit 1; }
+          go vet ./...
+          GOOS=windows go vet ./...
+          brew install shellcheck && shellcheck install.sh tools/dist.sh tests/*.sh
+      - name: Unit tests
+        run: go test -race ./...
+      - name: Read-only report
+        run: go run ./cmd/medic --no-color
       - name: Commands, JSON and exit codes
         run: tests/macos-commands.sh
-      - name: Install, run from any folder, uninstall
-        run: tests/macos-install.sh
+      - name: Printed delete commands are safe
+        run: tests/macos-delete-commands.sh
+      - uses: actions/download-artifact@v4
+        with:
+          name: dist
+          path: dist
+      - name: Install from the release files, run from any folder, uninstall
+        run: tests/macos-install.sh dist
       - name: README screenshots match the current output
         run: |
           python3 docs/make-screenshots.py
           git diff --exit-code -- docs/ || { echo "::error::Screenshots are out of date. Run: python3 docs/make-screenshots.py"; exit 1; }
 
   windows:
+    needs: dist
     runs-on: windows-latest
     steps:
       - uses: actions/checkout@v5
+      - uses: actions/setup-go@v5
+        with:
+          go-version-file: go.mod
       - name: Lint
         shell: pwsh
         run: |
-          foreach ($file in Get-ChildItem -Recurse -Include *.ps1, *.psd1 -Path windows, tests, docs, install.ps1) {
+          $scripts = Get-ChildItem -Recurse -Include *.ps1, *.psd1 -Path install.ps1, PSScriptAnalyzerSettings.psd1, tests
+          foreach ($file in $scripts) {
             if ((Get-Content -Raw $file.FullName) -match '[^\x00-\x7F]') {
               throw "$file must be ASCII only: Windows PowerShell 5.1 misreads other characters"
             }
           }
           Install-Module PSScriptAnalyzer -Force -Scope CurrentUser
-          $results = Get-ChildItem -Recurse -Include *.ps1 -Path windows, tests, docs, install.ps1 |
-            ForEach-Object { Invoke-ScriptAnalyzer -Path $_.FullName -Settings windows/PSScriptAnalyzerSettings.psd1 }
+          $results = $scripts | Where-Object Extension -eq '.ps1' |
+            ForEach-Object { Invoke-ScriptAnalyzer -Path $_.FullName -Settings PSScriptAnalyzerSettings.psd1 }
           $results | Format-Table -AutoSize
           if ($results) { exit 1 }
-      - name: Read-only scan with Windows PowerShell 5.1
-        shell: powershell
-        run: .\windows\medic.ps1 -NoColor
-      - name: Read-only scan with PowerShell 7
-        shell: pwsh
-        run: ./windows/medic.ps1 -Quick -NoColor
-      - name: Printed Clear-Folder helper is safe (Windows PowerShell 5.1)
-        shell: powershell
-        run: .\tests\windows-clear-folder.ps1
-      - name: Printed Clear-Folder helper is safe (PowerShell 7)
-        shell: pwsh
-        run: ./tests/windows-clear-folder.ps1
+      - name: Unit tests
+        run: go test ./...
+      - name: Read-only report
+        run: go run ./cmd/medic --no-color
       - name: Commands, JSON and exit codes (Windows PowerShell 5.1)
         shell: powershell
         run: .\tests\windows-commands.ps1
       - name: Commands, JSON and exit codes (PowerShell 7)
         shell: pwsh
         run: ./tests/windows-commands.ps1
-      - name: Build the release files
-        shell: bash
-        run: tools/dist.sh dist
+      - uses: actions/download-artifact@v4
+        with:
+          name: dist
+          path: dist
       - name: Install, run from any folder, uninstall (Windows PowerShell 5.1)
         shell: powershell
         run: .\tests\windows-install.ps1 -Dist dist

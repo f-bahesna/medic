@@ -1,8 +1,8 @@
 @{
     ExcludeRules = @(
-        # The script is an interactive, colored report: Write-Host is the point.
+        # The installer and the tests talk to a person: Write-Host is the point.
         'PSAvoidUsingWriteHost'
-        # Cleaning has its own per-item confirmation and -DryRun instead of -WhatIf.
+        # The installer changes only what it installed, and -Uninstall undoes it.
         'PSUseShouldProcessForStateChangingFunctions'
     )
     Rules = @{
