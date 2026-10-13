@@ -274,6 +274,9 @@ func renderCommands(p *ui.Printer, r *Report) {
 }
 
 func renderBreakdowns(p *ui.Printer, r *Report) {
+	if len(r.Breakdowns) == 0 {
+		return
+	}
 	if r.mac() {
 		p.Section("Where the space inside your Library goes")
 	} else {

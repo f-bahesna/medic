@@ -135,7 +135,7 @@ func (c *cmd) storageReport(withMemory bool) error {
 		r.Scanned = true
 		for _, dir := range scan.BreakdownDirs(c.home) {
 			c.progress.Show(r.tilde(dir))
-			if entries := scan.Breakdown(dir, 8); dir != "" {
+			if entries := scan.Breakdown(dir, 8); len(entries) > 0 {
 				r.Breakdowns = append(r.Breakdowns, Breakdown{Dir: dir, Entries: entries})
 			}
 		}

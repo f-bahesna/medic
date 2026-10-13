@@ -3,6 +3,7 @@ package sysinfo
 import (
 	"fmt"
 	"os"
+	"path/filepath"
 	"strings"
 	"unsafe"
 
@@ -142,21 +143,38 @@ func ReadMemory() Memory {
 }
 
 func readPageFile(page int64) (used, total int64) {
+	for _, f := range pageFiles() {
+		used += int64(f.inUse) * page
+		total += int64(f.size) * page
+	}
+	return used, total
+}
+
+type pageFile struct {
+	path        string
+	size, inUse uint32 // in pages
+}
+
+// pageFiles lists the page files Windows uses, wherever they are: not always
+// C:\pagefile.sys, cloud machines often keep it on a temporary drive.
+func pageFiles() []pageFile {
 	buf := make([]byte, 4096)
 	var n uint32
 	if windows.NtQuerySystemInformation(windows.SystemPageFileInformation, unsafe.Pointer(&buf[0]), uint32(len(buf)), &n) != nil {
-		return 0, 0
+		return nil
 	}
+	var files []pageFile
 	for off := uint32(0); off < n; {
 		e := (*pageFileInformation)(unsafe.Pointer(&buf[off]))
-		used += int64(e.TotalInUse) * page
-		total += int64(e.TotalSize) * page
+		// Names look like \??\C:\pagefile.sys.
+		path := strings.TrimPrefix(e.PageFileName.String(), `\??\`)
+		files = append(files, pageFile{path: path, size: e.TotalSize, inUse: e.TotalInUse})
 		if e.NextEntryOffset == 0 {
 			break
 		}
 		off += e.NextEntryOffset
 	}
-	return used, total
+	return files
 }
 
 // readApps groups processes by name with their working sets, like Get-Process.
@@ -220,23 +238,44 @@ func FreeBytes() int64 {
 // TimeMachineSnapshots is a macOS concept.
 func TimeMachineSnapshots() int { return 0 }
 
-// SystemFiles are the page, hibernation and swap files that exist on the
-// system drive. The directory listing has their size even though they are
+// SystemFiles are the page files, and the hibernation and swap files on the
+// system drive. A directory listing has their size even though they are
 // locked.
 func SystemFiles() []File {
-	root := SystemDrive() + `\`
-	entries, err := os.ReadDir(root)
-	if err != nil {
-		return nil
+	var paths []string
+	for _, f := range pageFiles() {
+		paths = append(paths, f.path)
 	}
+	root := SystemDrive() + `\`
+	paths = append(paths, root+"hiberfil.sys", root+"swapfile.sys")
 	var files []File
-	for _, e := range entries {
-		switch strings.ToLower(e.Name()) {
-		case "pagefile.sys", "hiberfil.sys", "swapfile.sys":
-			if info, err := e.Info(); err == nil {
-				files = append(files, File{Path: root + e.Name(), Bytes: info.Size()})
-			}
+	seen := map[string]bool{}
+	for _, p := range paths {
+		if seen[strings.ToLower(p)] {
+			continue
+		}
+		seen[strings.ToLower(p)] = true
+		if size, ok := listedSize(p); ok {
+			files = append(files, File{Path: p, Bytes: size})
 		}
 	}
 	return files
+}
+
+// listedSize reads a file's size from its folder's listing, which works for
+// files Windows keeps locked.
+func listedSize(path string) (int64, bool) {
+	dir, name := filepath.Split(path)
+	entries, err := os.ReadDir(dir)
+	if err != nil {
+		return 0, false
+	}
+	for _, e := range entries {
+		if strings.EqualFold(e.Name(), name) {
+			if info, err := e.Info(); err == nil {
+				return info.Size(), true
+			}
+		}
+	}
+	return 0, false
 }
