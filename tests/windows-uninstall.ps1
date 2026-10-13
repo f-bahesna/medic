@@ -48,7 +48,8 @@ try {
 
     $r = Invoke-MedicProcess @('uninstall', 'medictestapp', '--dry-run')
     Assert-True ($r.Code -eq 0) "uninstall --dry-run exited with $($r.Code): $($r.Out)"
-    foreach ($want in "rd /s /q", $installDir, $leftover, 'install folder', 'same name', 'Dry run') {
+    # Paths inside the profile are shown starting with ~, so look for their ends.
+    foreach ($want in "rd /s /q", 'Programs\MedicTestApp', 'Roaming\MedicTestApp', 'install folder', 'same name', 'Dry run') {
         Assert-True ($r.Out.Contains($want)) "the review does not show '$want':`n$($r.Out)"
     }
 

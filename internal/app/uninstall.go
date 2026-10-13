@@ -183,15 +183,15 @@ func (c *cmd) uninstallWithUninstaller(app apps.App, command string, ids []strin
 
 func (c *cmd) printRows(rows []apps.Leftover) {
 	p := c.p
-	p.Printf("\n  %s\n", p.G(fmt.Sprintf("%-3s %-10s %-14s %s", "#", "SIZE", "MATCHED BY", "PATH")))
+	p.Printf("\n  %s\n", p.G(fmt.Sprintf("%-3s %-10s %-15s %s", "#", "SIZE", "MATCHED BY", "PATH")))
 	byName := false
 	for n, l := range rows {
 		why := l.Why
 		if why == "same name" {
-			why = p.Yellow + fmt.Sprintf("%-14s", why) + p.Reset
+			why = p.Yellow + fmt.Sprintf("%-15s", why) + p.Reset
 			byName = true
 		} else {
-			why = fmt.Sprintf("%-14s", why)
+			why = fmt.Sprintf("%-15s", why)
 		}
 		p.Printf("  %-3d %-10s %s %s\n", n+1, c.report.size(l.Bytes), why, c.report.tilde(l.Path))
 	}
