@@ -33,6 +33,9 @@ for cmd in "report --quick" disk memory "purge" "check --min-free 1M"; do
   run $cmd --json | json "$cmd"
 done
 
+folders=$(run purge --json | python3 -c 'import json, sys; print(" ".join(sorted(f["kind"] for f in json.load(sys.stdin)["purge"]["folders"])))')
+[ "$folders" = "Rust build node_modules" ] || fail "purge --json listed '$folders' instead of the two inactive projects"
+
 run check --min-free 1M >/dev/null || fail "check failed with a 1 MB minimum"
 if run check --min-free 100% >/dev/null; then fail "check passed with a 100% minimum"; fi
 for bad in "bogus" "--yes" "clean --json" "check --min-free lots" "purge --only safe" "--large"; do

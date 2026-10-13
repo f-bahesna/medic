@@ -55,6 +55,9 @@ try {
         try { $null = $r.Out | ConvertFrom-Json } catch { throw "FAIL: medic $cmd -Json did not print valid JSON: $($r.Out)" }
     }
 
+    $kinds = @(((Invoke-MedicProcess @('purge', '-Json')).Out | ConvertFrom-Json).purge.folders | ForEach-Object { $_.kind } | Sort-Object) -join ', '
+    Assert-True ($kinds -eq 'node_modules, Rust build') "purge -Json listed '$kinds' instead of the two inactive projects"
+
     Assert-True ((Invoke-MedicProcess @('check', '-MinFree', '1M')).Code -eq 0) 'check failed with a 1 MB minimum'
     Assert-True ((Invoke-MedicProcess @('check', '-MinFree', '100%')).Code -eq 1) 'check passed with a 100% minimum'
     foreach ($bad in @(@('bogus'), @('-Yes'), @('clean', '-Json'), @('check', '-MinFree', 'lots'), @('purge', '-Only', 'safe'))) {

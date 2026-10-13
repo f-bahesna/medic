@@ -1092,7 +1092,7 @@ function Find-PurgeFolder([string[]]$Roots) {
             }
         })
     Write-Progress -Activity 'medic' -Completed
-    return , @($found | Sort-Object Bytes -Descending)
+    $found | Sort-Object Bytes -Descending
 }
 
 # Delete a purge folder itself, after checking again that it is one and that
