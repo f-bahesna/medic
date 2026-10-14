@@ -5,6 +5,7 @@ For macOS and Windows.
 
 - **Read-only by default.** Nothing is deleted unless you run a cleanup or an uninstall, review what it found, and confirm.
 - **One small program, no dependencies.** For macOS (Apple silicon and Intel) and Windows (x64 and ARM).
+- **A menu bar app for Mac.** CPU and memory at a glance, next to the battery, from a DMG you drag to Applications.
 
 Formerly `storage-doctor`.
 
@@ -46,7 +47,34 @@ The installer:
 | Update | Run the install command again | Run the install command again |
 | Install a specific version | `... \| bash -s -- --version v0.5.0` | `& ([scriptblock]::Create((irm .../install.ps1))) -Version v0.5.0` |
 | Uninstall | `... \| bash -s -- --uninstall` | `& ([scriptblock]::Create((irm .../install.ps1))) -Uninstall` |
-| Run without installing | Download `medic_macos_arm64.tar.gz` (or `amd64` for Intel) from the [latest release](https://github.com/f-bahesna/medic/releases/latest), unpack it, run `./medic` | Download `medic_windows_amd64.zip` (or `arm64`), unpack it, run `.\medic.exe` |
+| Run without installing | Download `medic_macos_arm64.tar.gz` (or `amd64` for Intel) from the [latest release](https://github.com/f-bahesna/medic/releases/latest), unpack it, run `xattr -d com.apple.quarantine medic` once, then `./medic` | Download `medic_windows_amd64.zip` (or `arm64`), unpack it, run `.\medic.exe` |
+
+A `medic` downloaded with a browser is stopped by macOS (`zsh: killed ./medic`), because it is not notarized by Apple.
+The install command above does not have this problem, and the `xattr` line fixes a browser download.
+
+### Menu bar app (Mac)
+
+Medic.app shows CPU and RAM use in the menu bar, like the battery percentage: `CPU 23%  RAM 71%`.
+Click it for CPU, memory pressure, swap, free disk space, and the apps using the most memory and CPU.
+
+![Medic's menu](docs/screenshot-menubar.png)
+
+1. Download [Medic.dmg](https://github.com/f-bahesna/medic/releases/latest/download/Medic.dmg) and open it.
+2. Drag Medic to Applications, then open Medic from Applications.
+3. The first time, macOS says it cannot verify Medic, because it is not notarized by Apple.
+   Click **Done**, open **System Settings > Privacy & Security**, scroll down and click **Open Anyway** next to Medic.
+   You only do this once.
+
+From its menu you can:
+
+- choose what the menu bar shows: CPU and RAM, CPU only or RAM only,
+- open Medic at login (macOS 13 or newer),
+- install the `medic` command, which is built in, so you do not need the install command above,
+- open the full report or a cleanup in Terminal.
+
+The RAM figure turns orange or red when macOS is short on memory, not when "used" is high: high use is normal on a Mac.
+Medic.app needs macOS 11 or newer, and runs natively on Apple silicon and Intel.
+To remove it, quit it from its menu and move it from Applications to the Trash.
 
 ## Usage
 

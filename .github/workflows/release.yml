@@ -2,7 +2,14 @@ name: Release
 
 # Push a tag like v0.5.0 to publish a release. The tag is the version medic
 # reports. The installers download the archive for their system and check it
-# against the SHA256SUMS published here.
+# against the SHA256SUMS published here. Medic.dmg, the menu bar app, is built
+# here too, so this runs on macOS.
+#
+# With these repository secrets set, Medic.dmg is signed with a Developer ID
+# and notarized, so it opens without a warning:
+#   MACOS_CERTIFICATE           the "Developer ID Application" .p12, base64
+#   MACOS_CERTIFICATE_PASSWORD  its password
+#   APPLE_ID, APPLE_TEAM_ID, APPLE_APP_PASSWORD  an app-specific password
 on:
   push:
     tags: ['v*']
@@ -12,7 +19,9 @@ permissions:
 
 jobs:
   release:
-    runs-on: ubuntu-latest
+    runs-on: macos-latest
+    env:
+      HAS_CERTIFICATE: ${{ secrets.MACOS_CERTIFICATE != '' }}
     steps:
       - uses: actions/checkout@v5
       - uses: actions/setup-go@v5
@@ -23,6 +32,33 @@ jobs:
           [[ "$GITHUB_REF_NAME" =~ ^v[0-9]+\.[0-9]+\.[0-9]+$ ]] || { echo "::error::Tags look like v1.2.3, got $GITHUB_REF_NAME"; exit 1; }
       - name: Build the release files
         run: tools/dist.sh dist "${GITHUB_REF_NAME#v}"
+      - name: Load the Developer ID certificate
+        if: env.HAS_CERTIFICATE == 'true'
+        env:
+          MACOS_CERTIFICATE: ${{ secrets.MACOS_CERTIFICATE }}
+          MACOS_CERTIFICATE_PASSWORD: ${{ secrets.MACOS_CERTIFICATE_PASSWORD }}
+        run: |
+          keychain="$RUNNER_TEMP/signing.keychain-db"
+          password=$(uuidgen)
+          printf '%s' "$MACOS_CERTIFICATE" | base64 --decode >"$RUNNER_TEMP/certificate.p12"
+          security create-keychain -p "$password" "$keychain"
+          security set-keychain-settings -lut 3600 "$keychain"
+          security unlock-keychain -p "$password" "$keychain"
+          security import "$RUNNER_TEMP/certificate.p12" -k "$keychain" -P "$MACOS_CERTIFICATE_PASSWORD" -T /usr/bin/codesign
+          security set-key-partition-list -S apple-tool:,apple:,codesign: -s -k "$password" "$keychain" >/dev/null
+          security list-keychains -d user -s "$keychain" $(security list-keychains -d user | tr -d '"')
+          rm "$RUNNER_TEMP/certificate.p12"
+          identity=$(security find-identity -v -p codesigning "$keychain" | awk -F'"' '/Developer ID Application/ { print $2; exit }')
+          [ -n "$identity" ] || { echo "::error::No Developer ID Application identity in MACOS_CERTIFICATE"; exit 1; }
+          echo "MEDIC_SIGN_IDENTITY=$identity" >>"$GITHUB_ENV"
+      - name: Build Medic.dmg
+        env:
+          APPLE_ID: ${{ secrets.APPLE_ID }}
+          APPLE_TEAM_ID: ${{ secrets.APPLE_TEAM_ID }}
+          APPLE_APP_PASSWORD: ${{ secrets.APPLE_APP_PASSWORD }}
+        run: tools/macapp.sh dist "${GITHUB_REF_NAME#v}"
+      - name: Install the app from the DMG and start it
+        run: tests/macos-app.sh dist
       - name: Publish
         env:
           GH_TOKEN: ${{ github.token }}
