@@ -32,7 +32,7 @@ jobs:
           test -z "$(gofmt -l .)" || { gofmt -l .; echo "::error::Run: gofmt -w ."; exit 1; }
           go vet ./...
           GOOS=windows go vet ./...
-          brew install shellcheck && shellcheck install.sh tools/dist.sh tests/*.sh
+          brew install shellcheck && shellcheck install.sh tools/*.sh macos/test.sh tests/*.sh
       - name: Unit tests
         run: go test -race ./...
       - name: Read-only report
@@ -49,6 +49,10 @@ jobs:
           path: dist
       - name: Install from the release files, run from any folder, uninstall
         run: tests/macos-install.sh dist
+      - name: Menu bar app unit tests
+        run: macos/test.sh
+      - name: Build Medic.dmg, install the app from it, start it
+        run: tests/macos-app.sh
       - name: README screenshots match the current output
         run: |
           python3 docs/make-screenshots.py

@@ -1,0 +1,9 @@
+import AppKit
+
+// A menu bar app: no Dock icon and no main window (LSUIElement in Info.plist,
+// and here too so `swift run` behaves the same).
+let app = NSApplication.shared
+let delegate = AppDelegate()
+app.delegate = delegate
+app.setActivationPolicy(.accessory)
+app.run()
