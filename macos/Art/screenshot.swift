@@ -1,5 +1,5 @@
 // Draws docs/screenshot-menubar.png from Medic.app's real menu views, with
-// sample data, like the other README screenshots. Run tools/menubar-screenshot.sh.
+// sample data, like the other README screenshots. Run tools/macapp-screenshots.sh.
 import AppKit
 
 let out = URL(fileURLWithPath: CommandLine.arguments.count > 1 ? CommandLine.arguments[1] : ".")
@@ -38,14 +38,81 @@ topCPU.update(sample.apps!, ready: true)
 
 let barHeight: CGFloat = 24
 let margin: CGFloat = 16
+let menuPadding: CGFloat = 6
 // A menu separator, as between the panels in the real menu.
-let separator = NSView(frame: NSRect(x: 0, y: 0, width: menuWidth, height: 11))
-let line = NSBox(frame: NSRect(x: 10, y: 5, width: menuWidth - 20, height: 1))
-line.boxType = .separator
-separator.addSubview(line)
-let panels: [NSView] = [stats, separator, topMemory, topCPU]
-let menuHeight = panels.reduce(0) { $0 + $1.frame.height } + 2 * 6
-let size = NSSize(width: menuWidth + 2 * margin + 40, height: barHeight + 6 + menuHeight + margin)
+func separator(width: CGFloat = menuWidth) -> NSView {
+    let view = NSView(frame: NSRect(x: 0, y: 0, width: width, height: 11))
+    let line = NSBox(frame: NSRect(x: 10, y: 5, width: width - 20, height: 1))
+    line.boxType = .separator
+    view.addSubview(line)
+    return view
+}
+
+/// An ordinary menu item, drawn as macOS draws it: a checkmark column, the
+/// title, and a submenu arrow or a key equivalent on the right.
+final class MenuItemView: NSView {
+    let title: String
+    let checked: Bool
+    let submenu: Bool
+    let key: String?
+    let highlighted: Bool
+
+    init(_ title: String, width: CGFloat = menuWidth, checked: Bool = false, submenu: Bool = false, key: String? = nil, highlighted: Bool = false) {
+        (self.title, self.checked, self.submenu, self.key, self.highlighted) = (title, checked, submenu, key, highlighted)
+        super.init(frame: NSRect(x: 0, y: 0, width: width, height: 22))
+    }
+
+    required init?(coder: NSCoder) { fatalError() }
+
+    override func draw(_ dirtyRect: NSRect) {
+        if highlighted {
+            NSColor.controlAccentColor.setFill()
+            NSBezierPath(roundedRect: bounds.insetBy(dx: 5, dy: 0), xRadius: 4, yRadius: 4).fill()
+        }
+        let color: NSColor = highlighted ? .white : .labelColor
+        let font = NSFont.menuFont(ofSize: 13)
+        let text = NSAttributedString(string: title, attributes: [.font: font, .foregroundColor: color])
+        let y = (bounds.height - text.size().height) / 2
+        text.draw(at: NSPoint(x: leading, y: y))
+        func symbol(_ name: String, x: CGFloat, size: CGFloat = 11) {
+            let config = NSImage.SymbolConfiguration(pointSize: size, weight: .semibold).applying(.init(paletteColors: [color]))
+            guard let image = NSImage(systemSymbolName: name, accessibilityDescription: nil)?.withSymbolConfiguration(config) else { return }
+            image.draw(in: NSRect(x: x, y: (bounds.height - image.size.height) / 2, width: image.size.width, height: image.size.height))
+        }
+        if checked { symbol("checkmark", x: 6, size: 10) }
+        if submenu { symbol("chevron.right", x: bounds.width - trailing - 6) }
+        if let key {
+            let k = NSAttributedString(string: key, attributes: [.font: font, .foregroundColor: highlighted ? color : .secondaryLabelColor])
+            k.draw(at: NSPoint(x: bounds.width - trailing - k.size().width, y: y))
+        }
+    }
+}
+
+// The rest of the menu, as AppDelegate builds it, as it looks after
+// installing: the medic command not installed yet, Open at Login on.
+let styleItem = MenuItemView("Show in Menu Bar", submenu: true, highlighted: true)
+let panels: [NSView] = [
+    stats, separator(), topMemory, topCPU, separator(),
+    MenuItemView("Full Report in Terminal"),
+    MenuItemView("Clean Up in Terminal…"),
+    MenuItemView("Open Activity Monitor"),
+    separator(),
+    MenuItemView("Install “medic” Command…"),
+    styleItem,
+    MenuItemView("Open at Login", checked: true),
+    separator(),
+    MenuItemView("About Medic"),
+    MenuItemView("Quit Medic", key: "⌘Q"),
+]
+let menuHeight = panels.reduce(0) { $0 + $1.frame.height } + 2 * menuPadding
+
+// The Show in Menu Bar submenu, open next to its item.
+let submenuWidth: CGFloat = 150
+let submenuItems: [NSView] = BarStyle.allCases.map { MenuItemView($0.title, width: submenuWidth, checked: $0 == .cpuAndMemory) }
+let submenuHeight = submenuItems.reduce(0) { $0 + $1.frame.height } + 2 * menuPadding
+let submenuOverlap: CGFloat = 4
+
+let size = NSSize(width: 40 + margin + menuWidth - submenuOverlap + submenuWidth + margin, height: barHeight + 6 + menuHeight + margin)
 
 let window = NSWindow(contentRect: NSRect(origin: NSPoint(x: 80, y: 80), size: size), styleMask: [.borderless], backing: .buffered, defer: false)
 window.appearance = NSAppearance(named: .aqua)
@@ -62,7 +129,7 @@ let font = NSFont.monospacedDigitSystemFont(ofSize: NSFont.menuBarFont(ofSize: 0
 let title = NSTextField(labelWithAttributedString: NSAttributedString(
     string: barText(style: .cpuAndMemory, cpu: sample.cpu, memory: sample.memory), attributes: [.font: font]))
 title.sizeToFit()
-let menuX = size.width - margin - menuWidth
+let menuX = 40 + margin
 // The highlight a clicked menu bar item gets.
 let highlight = NSView(frame: NSRect(x: menuX + 8, y: 2, width: title.frame.width + 16, height: barHeight - 4))
 highlight.wantsLayer = true
@@ -72,19 +139,29 @@ bar.addSubview(highlight)
 title.setFrameOrigin(NSPoint(x: menuX + 16, y: (barHeight - title.frame.height) / 2))
 bar.addSubview(title)
 
-let menu = NSView(frame: NSRect(x: menuX, y: margin, width: menuWidth, height: menuHeight))
-menu.wantsLayer = true
-menu.layer!.backgroundColor = NSColor(white: 0.965, alpha: 1).cgColor
-menu.layer!.cornerRadius = 10
-menu.layer!.borderWidth = 0.5
-menu.layer!.borderColor = NSColor(white: 0, alpha: 0.15).cgColor
-root.addSubview(menu)
-var y = menuHeight - 6
-for p in panels {
-    y -= p.frame.height
-    p.setFrameOrigin(NSPoint(x: 0, y: y))
-    menu.addSubview(p)
+/// A menu's rounded panel with its items stacked from the top.
+func menuPanel(_ frame: NSRect, _ items: [NSView]) -> NSView {
+    let menu = NSView(frame: frame)
+    menu.wantsLayer = true
+    menu.layer!.backgroundColor = NSColor(white: 0.965, alpha: 1).cgColor
+    menu.layer!.cornerRadius = 10
+    menu.layer!.borderWidth = 0.5
+    menu.layer!.borderColor = NSColor(white: 0, alpha: 0.15).cgColor
+    var y = frame.height - menuPadding
+    for item in items {
+        y -= item.frame.height
+        item.setFrameOrigin(NSPoint(x: 0, y: y))
+        menu.addSubview(item)
+    }
+    return menu
 }
+
+let menu = menuPanel(NSRect(x: menuX, y: margin, width: menuWidth, height: menuHeight), panels)
+root.addSubview(menu)
+// As in macOS, the submenu's first item lines up with the item that opened it.
+let submenuTop = margin + styleItem.frame.maxY + menuPadding
+root.addSubview(menuPanel(
+    NSRect(x: menu.frame.maxX - submenuOverlap, y: submenuTop - submenuHeight, width: submenuWidth, height: submenuHeight), submenuItems))
 
 window.orderFrontRegardless()
 DispatchQueue.main.asyncAfter(deadline: .now() + 0.5) {

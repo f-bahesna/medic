@@ -57,7 +57,7 @@ The install command above does not have this problem, and the `xattr` line fixes
 Medic.app shows CPU and RAM use in the menu bar, like the battery percentage: `CPU 23%  RAM 71%`.
 Click it for CPU, memory pressure, swap, free disk space, and the apps using the most memory and CPU.
 
-![Medic's menu](docs/screenshot-menubar.png)
+To install it:
 
 1. Download [Medic.dmg](https://github.com/f-bahesna/medic/releases/latest/download/Medic.dmg) and open it.
 2. Drag Medic to Applications, then open Medic from Applications.
@@ -65,12 +65,19 @@ Click it for CPU, memory pressure, swap, free disk space, and the apps using the
    Click **Done**, open **System Settings > Privacy & Security**, scroll down and click **Open Anyway** next to Medic.
    You only do this once.
 
+![The Medic.dmg window: drag Medic to Applications](docs/screenshot-dmg.png)
+
+Medic then shows `CPU 23%  RAM 71%` at the top right of the screen, with no Dock icon.
+Click it to open its menu:
+
+![Medic's menu, with the Show in Menu Bar choices open](docs/screenshot-menubar.png)
+
 From its menu you can:
 
-- choose what the menu bar shows: CPU and RAM, CPU only or RAM only,
-- open Medic at login (macOS 13 or newer),
+- open the full report or a cleanup in Terminal, or Activity Monitor,
 - install the `medic` command, which is built in, so you do not need the install command above,
-- open the full report or a cleanup in Terminal.
+- choose what the menu bar shows in **Show in Menu Bar**: CPU and RAM, CPU only or RAM only,
+- open Medic at login (macOS 13 or newer).
 
 The RAM figure turns orange or red when macOS is short on memory, not when "used" is high: high use is normal on a Mac.
 Medic.app needs macOS 11 or newer, and runs natively on Apple silicon and Intel.

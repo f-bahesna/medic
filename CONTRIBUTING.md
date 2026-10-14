@@ -20,6 +20,7 @@ Medic.app, the Mac menu bar app, is a Swift package in `macos/` with no dependen
 | `macos/Sources/MedicBarCore` | Medic.app's readings of CPU, memory, disk and processes, and installing the `medic` command, without AppKit |
 | `macos/Sources/MedicBar` | Medic.app's menu bar item and menu |
 | `macos/Art/draw.swift` | Draws the app icon and the DMG window, so there are no image files to keep in sync |
+| `tools/macapp-screenshots.sh` | Draws the README screenshots of Medic's menu and the DMG window, with sample data |
 | `tools/macapp.sh` | Builds `Medic.dmg`: the app and `medic` for Apple silicon and Intel, signed, in a DMG |
 | `tools/screenshot`, `docs/make-screenshots.py` | Draw the README screenshots from the real rendering, with sample data |
 | `tests/` | End-to-end tests run by CI |
@@ -62,6 +63,7 @@ Everything goes to the Trash or Recycle Bin, never deleted directly.
 - `go test ./...`, then the end-to-end tests in `tests/` for your system.
 - `shellcheck install.sh tools/*.sh macos/test.sh tests/*.sh`, and `Invoke-ScriptAnalyzer` on the `.ps1` files with `-Settings PSScriptAnalyzerSettings.psd1`.
 - If you changed `macos/`: `macos/test.sh`, then `tests/macos-app.sh`, which builds the DMG and installs the app from it.
+- If you changed Medic's menu, the icon or the DMG window: `tools/macapp-screenshots.sh`.
   Keep the `.ps1` files ASCII only, Windows PowerShell 5.1 misreads other characters.
 - If the report changed: `python3 docs/make-screenshots.py`.
 
