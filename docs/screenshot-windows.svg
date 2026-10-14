@@ -12,7 +12,7 @@
 <text font-family="ui-monospace, SFMono-Regular, Menlo, Consolas, 'Cascadia Mono', monospace" font-size="13" fill="#cccccc" xml:space="preserve">
 <tspan x="20" y="58"><tspan fill="#cccccc">PS C:\Users\alex&gt; </tspan>medic --quick</tspan>
 <tspan x="20" y="94"><tspan fill="#cccccc" font-weight="bold">medic 0.5.0</tspan> <tspan fill="#767676">- DESKTOP-7K2M4QX, Microsoft Windows 11 Pro 10.0.26100</tspan></tspan>
-<tspan x="20" y="112">  <tspan fill="#767676">Read-only. Nothing is deleted unless you run 'medic clean' or 'medic purge' and confirm.</tspan></tspan>
+<tspan x="20" y="112">  <tspan fill="#767676">Read-only. Nothing is deleted unless you run clean, purge or uninstall and confirm.</tspan></tspan>
 <tspan x="20" y="148"><tspan fill="#3a96dd" font-weight="bold">Disk</tspan></tspan>
 <tspan x="20" y="166"><tspan fill="#767676">------------------------------------------------------------</tspan></tspan>
 <tspan x="20" y="184">  C: (system drive)</tspan>

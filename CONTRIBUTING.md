@@ -10,6 +10,7 @@ medic is a Go program with no dependencies outside the Go project's own `golang.
 | `internal/app` | Commands, options, text and JSON output |
 | `internal/items` | The known locations: `mac.go` and `windows.go` hold the lists, `collect_*.go` the system calls and cleanup |
 | `internal/scan` | Breakdowns, dev folders, large files and purge |
+| `internal/apps` | Installed apps and what they leave behind, for apps and uninstall |
 | `internal/sysinfo` | Disks, memory and the computer's name, per system |
 | `internal/fsx` | Measuring and deleting without following links |
 | `internal/ui` | Colors, sizes and the numbered picker |
@@ -30,6 +31,12 @@ To use your checkout as the `medic` command: `go build -o ~/.local/bin/medic ./c
 ## Adding a purge folder kind
 
 Add the folder name to `PurgeNames` and the file that proves what it is to `PurgeKind`, both in `internal/scan/purge.go`.
+
+## Uninstall rules
+
+An uninstall only offers paths it can explain: the app itself, entries named after its bundle id (Mac), its install folder (Windows), or folders with its exact name in a short list of app data folders.
+Anything new must keep that bar, and `apps.Allowed` checks every path again right before it moves.
+Everything goes to the Trash or Recycle Bin, never deleted directly.
 
 ## Before a pull request
 

@@ -1,10 +1,12 @@
 package items
 
 import (
+	"context"
 	"os"
 	"os/exec"
 	"path/filepath"
 	"strings"
+	"time"
 
 	"github.com/f-bahesna/medic/internal/fsx"
 	"github.com/f-bahesna/medic/internal/ui"
@@ -61,7 +63,7 @@ func findInstallers(home string) []string {
 func Clean(it *Item, home string, dry bool, p *ui.Printer) bool {
 	switch it.ID {
 	case "trash":
-		return run(p, dry, "osascript", "-e", `tell application "Finder" to empty trash`)
+		return emptyTrash(filepath.Join(home, ".Trash"), dry, p)
 	case "sim_devices":
 		return run(p, dry, "xcrun", "simctl", "delete", "unavailable")
 	case "docker":
@@ -81,10 +83,8 @@ func Clean(it *Item, home string, dry bool, p *ui.Printer) bool {
 				p.Note("would move to Trash: %s", ui.Tilde(f, home))
 				continue
 			}
-			err := exec.Command("osascript", "-e", "on run argv", "-e", "set f to POSIX file (item 1 of argv) as alias",
-				"-e", `tell application "Finder" to delete f`, "-e", "end run", f).Run()
-			if err != nil {
-				p.Warn("could not move %s to the Trash", ui.Tilde(f, home))
+			if err := fsx.Trash(f); err != nil {
+				p.Warn("could not move %s to the Trash: %v", ui.Tilde(f, home), err)
 			}
 		}
 		return true
@@ -94,6 +94,27 @@ func Clean(it *Item, home string, dry bool, p *ui.Printer) bool {
 		ok = emptyAllowed(d, macCleanableDirs(home), home, dry, p) && ok
 	}
 	return ok
+}
+
+// emptyTrash empties the Trash. With Full Disk Access medic does it itself;
+// without, macOS hides the Trash from the terminal and Finder has to, which
+// may ask once for permission to control Finder.
+func emptyTrash(trash string, dry bool, p *ui.Printer) bool {
+	if dry {
+		p.Note("would empty the Trash")
+		return true
+	}
+	if _, err := os.ReadDir(trash); err == nil {
+		fsx.EmptyDir(trash)
+		return true
+	}
+	ctx, cancel := context.WithTimeout(context.Background(), 2*time.Minute)
+	defer cancel()
+	if err := exec.CommandContext(ctx, "osascript", "-e", `tell application "Finder" to empty trash`).Run(); err != nil {
+		p.Warn("could not empty the Trash: allow the terminal to control Finder, or empty it in Finder")
+		return false
+	}
+	return true
 }
 
 // emptyAllowed deletes the contents of dir, only if it is on the allowlist
