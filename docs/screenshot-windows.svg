@@ -33,7 +33,7 @@
 <tspan x="20" y="472">  Committed              14.6 GB of 34.9 GB <tspan fill="#767676">(41%, RAM + page file)</tspan></tspan>
 <tspan x="20" y="490">  Page file used         1.1 GB of 18.9 GB</tspan>
 <tspan x="20" y="508">  Memory pressure        <tspan fill="#13a10e">Normal</tspan> <tspan fill="#767676">(31% available)</tspan></tspan>
-<tspan x="20" y="544">  <tspan fill="#cccccc" font-weight="bold">Top apps by memory</tspan> <tspan fill="#767676">(working set, approximate)</tspan></tspan>
+<tspan x="20" y="544">  <tspan fill="#cccccc" font-weight="bold">Top apps by memory</tspan> <tspan fill="#767676">(as in Task Manager)</tspan></tspan>
 <tspan x="20" y="562">    2.7 GB     chrome <tspan fill="#767676">(31 processes)</tspan></tspan>
 <tspan x="20" y="580">    1.4 GB     Memory Compression</tspan>
 <tspan x="20" y="598">    1.3 GB     Code <tspan fill="#767676">(11 processes)</tspan></tspan>

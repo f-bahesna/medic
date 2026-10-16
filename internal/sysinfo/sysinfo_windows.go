@@ -177,9 +177,21 @@ func pageFiles() []pageFile {
 	return files
 }
 
-// readApps groups processes by name with their working sets, like Get-Process.
-// It also returns the working set of "Memory Compression".
+// readApps keeps the 8 apps using the most memory. It also returns the
+// working set of "Memory Compression".
 func readApps() ([]App, int64) {
+	sum, count, compressed := appMemory()
+	if sum == nil {
+		return nil, 0
+	}
+	return topApps(sum, count), compressed
+}
+
+// appMemory groups processes by name with their private working sets, Task
+// Manager's "Memory" column. The full working set, which Get-Process shows,
+// also counts DLLs and other memory shared with other processes, once for
+// each of them.
+func appMemory() (sum map[string]int64, count map[string]int, compressed int64) {
 	size := uint32(1 << 20)
 	var buf []byte
 	for {
@@ -190,12 +202,11 @@ func readApps() ([]App, int64) {
 			break
 		}
 		if err != windows.STATUS_INFO_LENGTH_MISMATCH || size > 64<<20 {
-			return nil, 0
+			return nil, nil, 0
 		}
 		size = max(size*2, n+64<<10)
 	}
-	sum, count := map[string]int64{}, map[string]int{}
-	var compressed int64
+	sum, count = map[string]int64{}, map[string]int{}
 	for off := uintptr(0); ; {
 		p := (*windows.SYSTEM_PROCESS_INFORMATION)(unsafe.Pointer(&buf[off]))
 		if p.UniqueProcessID != 0 {
@@ -203,7 +214,7 @@ func readApps() ([]App, int64) {
 			if name == "Memory Compression" {
 				compressed = int64(p.WorkingSetSize)
 			}
-			sum[name] += int64(p.WorkingSetSize)
+			sum[name] += p.WorkingSetPrivateSize
 			count[name]++
 		}
 		if p.NextEntryOffset == 0 {
@@ -211,7 +222,7 @@ func readApps() ([]App, int64) {
 		}
 		off += uintptr(p.NextEntryOffset)
 	}
-	return topApps(sum, count), compressed
+	return sum, count, compressed
 }
 
 // IsAdmin reports whether medic runs elevated ("Run as administrator").
