@@ -30,7 +30,7 @@
 <tspan x="20" y="472">  Free                   712 MB</tspan>
 <tspan x="20" y="490">  Swap used              1.2 GB of 2.0 GB</tspan>
 <tspan x="20" y="508">  Memory pressure        <tspan fill="#98c379">Normal</tspan> <tspan fill="#7f848e">(52% available)</tspan></tspan>
-<tspan x="20" y="544">  <tspan fill="#ffffff" font-weight="bold">Top apps by memory</tspan> <tspan fill="#7f848e">(resident memory, approximate)</tspan></tspan>
+<tspan x="20" y="544">  <tspan fill="#ffffff" font-weight="bold">Top apps by memory</tspan> <tspan fill="#7f848e">(as in Activity Monitor)</tspan></tspan>
 <tspan x="20" y="562">    3.1 GB     Google Chrome <tspan fill="#7f848e">(24 processes)</tspan></tspan>
 <tspan x="20" y="580">    1.2 GB     Slack <tspan fill="#7f848e">(6 processes)</tspan></tspan>
 <tspan x="20" y="598">    1.1 GB     Visual Studio Code <tspan fill="#7f848e">(9 processes)</tspan></tspan>

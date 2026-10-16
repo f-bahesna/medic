@@ -35,7 +35,7 @@ It needs Swift from Xcode or the Command Line Tools (`xcode-select --install`), 
 
 Medic.app reads the same counters as `medic memory` with system calls instead of commands, so the numbers match and it costs almost nothing while it runs.
 It only reads every process while its menu is open.
-Memory per app is the physical footprint, as in Activity Monitor, of the apps your user runs; `medic memory` shows resident memory instead.
+Memory per app is the physical footprint, as in Activity Monitor, of the apps your user runs; `medic memory` also shows the footprint of system processes, which it reads from `top`.
 
 Releases are signed ad hoc unless the release workflow has a Developer ID, see `.github/workflows/release.yml`.
 Without one, people click Open Anyway once, and Medic clears the quarantine flag of the `medic` inside it when it starts, so that copy runs from Terminal too.
