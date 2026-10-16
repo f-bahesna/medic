@@ -19,7 +19,9 @@ set -euo pipefail
 
 out=${1:?usage: tools/macapp.sh OUTDIR [VERSION]}
 root=$(cd "$(dirname "$0")/.." && pwd)
-version=${2:-$(git -C "$root" describe --tags --dirty --match 'v[0-9]*' 2>/dev/null | sed 's/^v//')}
+# A checkout without tags, as in CI, builds "dev".
+version=${2:-$(git -C "$root" describe --tags --dirty --match 'v[0-9]*' 2>/dev/null || true)}
+version=${version#v}
 version=${version:-dev}
 identity=${MEDIC_SIGN_IDENTITY:-}
 [ "$(uname -s)" = Darwin ] || { echo "tools/macapp.sh: builds on macOS only" >&2; exit 1; }
