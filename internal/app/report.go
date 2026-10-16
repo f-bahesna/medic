@@ -184,7 +184,7 @@ func RenderMemory(p *ui.Printer, r *Report) {
 
 	what := "(as in Activity Monitor)"
 	if !r.mac() {
-		what = "(working set, approximate)"
+		what = "(as in Task Manager)"
 	}
 	p.Printf("\n  %s %s\n", p.B("Top apps by memory"), p.G(what))
 	for _, a := range m.TopApps {
