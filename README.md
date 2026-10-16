@@ -20,6 +20,17 @@ Formerly `storage-doctor`.
 
 <sub>Example output with sample data.</sub>
 
+## Download
+
+| System | Download | What it is |
+| --- | --- | --- |
+| Mac | [Medic.dmg](https://github.com/f-bahesna/medic/releases/latest/download/Medic.dmg) | The [menu bar app](#menu-bar-app-mac), with the `medic` command inside |
+| Mac | [Apple silicon](https://github.com/f-bahesna/medic/releases/latest/download/medic_macos_arm64.tar.gz), [Intel](https://github.com/f-bahesna/medic/releases/latest/download/medic_macos_amd64.tar.gz) | The `medic` command only |
+| Windows | [x64](https://github.com/f-bahesna/medic/releases/latest/download/medic_windows_amd64.zip), [ARM](https://github.com/f-bahesna/medic/releases/latest/download/medic_windows_arm64.zip) | The `medic` command, `medic.exe`, which runs in PowerShell or Command Prompt |
+
+The links always point to the latest release; older versions are on the [releases page](https://github.com/f-bahesna/medic/releases).
+For the command, the install commands below are easier: they put `medic` on your PATH and keep macOS from stopping it.
+
 ## Install
 
 **Mac** (macOS 11 or newer), in Terminal:
