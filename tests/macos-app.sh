@@ -67,6 +67,10 @@ pid=""
 
 version=$("$cli" --version) || fail "the bundled medic does not run after Medic was opened"
 case "$version" in "medic "*) ;; *) fail "the bundled medic --version printed '$version'" ;; esac
+# About Medic shows the bundle version: the medic version, as numbers.
+want=0.0.0
+[[ "$version" =~ ^medic\ ([0-9]+(\.[0-9]+)*) ]] && want=${BASH_REMATCH[1]}
+[ "$(plutil -extract CFBundleShortVersionString raw "$plist")" = "$want" ] || fail "About Medic shows $(plutil -extract CFBundleShortVersionString raw "$plist"), medic is $version"
 "$cli" memory --json | python3 -c 'import json, sys; m = json.load(sys.stdin)["memory"]; assert m["total_bytes"] > 0' ||
   fail "the bundled medic memory --json is not valid"
 

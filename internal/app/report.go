@@ -182,7 +182,7 @@ func RenderMemory(p *ui.Printer, r *Report) {
 	}
 	row(p, "Memory pressure", colorOf+word+p.Reset, hint)
 
-	what := "(resident memory, approximate)"
+	what := "(as in Activity Monitor)"
 	if !r.mac() {
 		what = "(working set, approximate)"
 	}

@@ -9,6 +9,7 @@ import (
 	"regexp"
 	"strconv"
 	"strings"
+	"unsafe"
 
 	"golang.org/x/sys/unix"
 )
@@ -103,32 +104,77 @@ func ReadMemory() Memory {
 	return m
 }
 
-var appBundle = regexp.MustCompile(`([^/]+)\.app/`)
+var (
+	appBundle = regexp.MustCompile(`([^/]+)\.app/`)
+	psLine    = regexp.MustCompile(`^\s*(\d+)\s+(\d+)\s+(.+)$`)
+	topLine   = regexp.MustCompile(`^\s*(\d+)\s+(\d+(?:\.\d+)?)([BKMGT])[+-]?\s*$`)
+)
 
 // readApps groups processes by app: everything inside "Foo.app/" counts as Foo,
-// so helper processes add up under their app.
+// so helper processes add up under their app. Memory is the physical
+// footprint, Activity Monitor's "Memory" column. The resident size ps prints
+// leaves out what is compressed or swapped, often most of a big app.
 func readApps() []App {
-	out, _ := exec.Command("ps", "-axo", "rss=,comm=").Output()
+	out, _ := exec.Command("ps", "-axo", "pid=,rss=,comm=").Output()
+	var others map[int]int64
 	sum, count := map[string]int64{}, map[string]int{}
 	sc := bufio.NewScanner(bytes.NewReader(out))
 	for sc.Scan() {
-		fields := strings.SplitN(strings.TrimSpace(sc.Text()), " ", 2)
-		if len(fields) != 2 {
+		f := psLine.FindStringSubmatch(sc.Text())
+		if f == nil {
 			continue
 		}
-		kb, err := strconv.ParseInt(fields[0], 10, 64)
-		if err != nil {
-			continue
+		pid, _ := strconv.Atoi(f[1])
+		size, ok := footprint(pid)
+		if !ok {
+			// Processes of root and other users: only top, which runs as
+			// root, can read their footprint.
+			if others == nil {
+				others = parseTopMemory(output("top", "-l", "1", "-stats", "pid,mem"))
+			}
+			if size, ok = others[pid]; !ok {
+				kb, _ := strconv.ParseInt(f[2], 10, 64)
+				size = kb * 1024
+			}
 		}
-		path := strings.TrimSpace(fields[1])
+		path := strings.TrimSpace(f[3])
 		name := path[strings.LastIndex(path, "/")+1:]
 		if m := appBundle.FindStringSubmatch(path); m != nil {
 			name = m[1]
 		}
-		sum[name] += kb * 1024
+		sum[name] += size
 		count[name]++
 	}
 	return topApps(sum, count)
+}
+
+// footprint is a process's physical footprint to the byte, as
+// proc_pid_rusage(3) reads it. The kernel answers only for this user's
+// processes.
+func footprint(pid int) (int64, bool) {
+	const callPIDRusage, rusageInfoV0 = 9, 0
+	var info [96]byte // struct rusage_info_v0
+	_, _, errno := unix.Syscall6(unix.SYS_PROC_INFO, callPIDRusage, uintptr(pid), rusageInfoV0, 0, uintptr(unsafe.Pointer(&info[0])), 0)
+	if errno != 0 {
+		return 0, false
+	}
+	// After the 16-byte uuid come uint64 fields; ri_phys_footprint is the 8th.
+	return int64(binary.LittleEndian.Uint64(info[72:80])), true
+}
+
+// parseTopMemory reads the footprint of every process from
+// "top -l 1 -stats pid,mem", which prints sizes like 18M, 512K or 1115M+.
+func parseTopMemory(out string) map[int]int64 {
+	unit := map[string]float64{"B": 1, "K": 1 << 10, "M": 1 << 20, "G": 1 << 30, "T": 1 << 40}
+	mem := map[int]int64{}
+	for _, line := range strings.Split(out, "\n") {
+		if m := topLine.FindStringSubmatch(line); m != nil {
+			pid, _ := strconv.Atoi(m[1])
+			n, _ := strconv.ParseFloat(m[2], 64)
+			mem[pid] = int64(n * unit[m[3]])
+		}
+	}
+	return mem
 }
 
 // IsAdmin is always false on macOS: medic refuses to run as root.
