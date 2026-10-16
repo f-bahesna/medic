@@ -5,6 +5,9 @@
 #
 # Usage: tools/macapp.sh OUTDIR [VERSION]
 #
+# VERSION defaults to the checkout's tag, like 0.6.0, or 0.6.0-3-gabc1234 a
+# few commits after it, so a local build says which version it is.
+#
 # Signing: with MEDIC_SIGN_IDENTITY set to a "Developer ID Application"
 # identity in the keychain, the app and DMG are signed with it. With
 # APPLE_ID, APPLE_TEAM_ID and APPLE_APP_PASSWORD also set, the DMG is
@@ -15,8 +18,9 @@
 set -euo pipefail
 
 out=${1:?usage: tools/macapp.sh OUTDIR [VERSION]}
-version=${2:-dev}
 root=$(cd "$(dirname "$0")/.." && pwd)
+version=${2:-$(git -C "$root" describe --tags --dirty --match 'v[0-9]*' 2>/dev/null | sed 's/^v//')}
+version=${version:-dev}
 identity=${MEDIC_SIGN_IDENTITY:-}
 [ "$(uname -s)" = Darwin ] || { echo "tools/macapp.sh: builds on macOS only" >&2; exit 1; }
 mkdir -p "$out"
@@ -24,9 +28,9 @@ out=$(cd "$out" && pwd)
 work=$(mktemp -d)
 trap 'rm -rf "$work"' EXIT
 
-# Info.plist versions must be numbers.
-bundle_version=$version
-[[ "$bundle_version" =~ ^[0-9]+(\.[0-9]+)*$ ]] || bundle_version=0.0.0
+# Info.plist versions must be numbers: 0.6.0-3-gabc1234 is 0.6.0 there.
+bundle_version=0.0.0
+[[ "$version" =~ ^[0-9]+(\.[0-9]+)* ]] && bundle_version=${BASH_REMATCH[0]}
 
 app="$work/Medic.app"
 mkdir -p "$app/Contents/MacOS" "$app/Contents/Helpers" "$app/Contents/Resources"
